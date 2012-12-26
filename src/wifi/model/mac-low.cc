@@ -855,8 +855,124 @@ namespace ns3 {
 
   }
 
+  void MacLow::CollectConfilictingLinks ( std::vector<int64_t> &vec)
+  {
+    // clear pervious results
+    vec.clear ();
+    TdmaLink linkInfo = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].selfInitiatedLink;
+    // if no link is initiated by @m_self, return;
+    if ( linkInfo.linkId == 0)
+    {
+      return;
+    }
+
+    Mac48Address sender = m_self;
+    Mac48Address receiver = Mac48Address (linkInfo.receiverAddr.c_str ());
+
+    // if the receiver is the broadcast addr, that also means there is no valid link initiated by the sender, return 
+    if ( receiver == Mac48Address::GetBroadcast ())
+    {
+      return;
+    }
+
+    // we set the data packet receiver address here. Later when we need to generate data packet to send at the mac layer,
+    // we need this m_dataReceiverAddr
+    // Note, this @m_dataReceiverAddr will not change during simulations, at least, according to our current settings. 12/26/2012
+    if ( m_dataReceiverAddr == Mac48Address::GetBroadcast ())
+    {
+      m_dataReceiverAddr = receiver;
+    }
+
+    //????????????????????????????
+    std::vector<double> ers = GetErInforItemForLink (sender, receiver, Mac48Address (linkInfo.senderAddr.c_str ()), Mac48Address (linkInfo.receiverAddr.c_str ()));// get ER information (edge interference)
+
+
+    std::vector<std::string> nodesInEr;
+#ifdef ENABLE_ACK_ER
+    nodesInEr = Simulator::ListNodesInEr (sender.ToString (), ers[1], receiver.ToString (), ers[0]); // get all the nodes in ER. This vector also contains the sender and receiver of the target link
+#else
+    nodesInEr = Simulator::ListNodesInEr (receiver.ToString (), ers[0]); 
+#endif
+
+    // has not added the target link itself 
+    for (std::vector<std::string>::iterator it = nodesInEr.begin (); it != nodesInEr.end (); ++ it) // for every node in ER.
+    {
+      std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[Mac48Address (it->c_str ()).GetNodeId ()].relatedLinks;
+      for (std::vector<TdmaLink>::iterator _it = relatedLinks.begin (); _it != relatedLinks.end (); ++ _it)
+      { 
+        // for all its related link, check if the link has been previously added?
+        bool added = false;
+        for (std::vector<int64_t>::iterator pri_it = vec.begin (); pri_it != vec.end (); ++ pri_it)
+        {
+          if (_it->linkId == *pri_it)//this link has been added
+          {
+            added = true;
+            break;
+          }
+        }
+        if ( added == false) // if not, calculate the priority
+        {
+          vec.push_back (_it->linkId);
+        }
+      }
+    }
+
+
+    // ____________________________________________________________________________________________________________________________
+    //                      This part is similar to the Bi-directional ER logic
+    // ____________________________________________________________________________________________________________________________
+    std::vector<TdmaLink> allLinks = Simulator::ListAllLinks ();
+    for (std::vector<TdmaLink>::iterator it = allLinks.begin (); it != allLinks.end (); ++ it)
+    {
+      if (it->linkId == linkInfo.linkId ) // if the current link is the target link, ignore it
+      {
+        continue;
+      }
+      bool added = false;
+      for (std::vector<int64_t>::iterator pri_it = vec.begin (); pri_it != vec.end (); ++ pri_it)
+      {
+        if (it->linkId == *pri_it )
+        {
+          added = true;
+          break;
+        }
+      }
+      if (added == true)//this link has been added, ignore it
+      {
+        continue;
+      }
+      if (added == false )// if the current link has not been added yet, 
+      {
+        //Find nodes in ER
+
+        std::vector<double> _ers = GetErInforItemForLink (Mac48Address (it->senderAddr.c_str ()) ,Mac48Address (it->receiverAddr.c_str ()), Mac48Address (linkInfo.senderAddr.c_str ()), Mac48Address (linkInfo.receiverAddr.c_str ()));// get ER information (edge interference)
+
+        std::vector<std::string> _nodesInEr;
+
+#ifdef ENABLE_ACK_ER
+        _nodesInEr = Simulator::ListNodesInEr (it->senderAddr, _ers[1], it->receiverAddr, _ers[0]); // get all the nodes in ER. This vector also contains the sender and receiver of the target link
+#else
+        _nodesInEr = Simulator::ListNodesInEr (it->receiverAddr, _ers[0]); 
+#endif
+        //if the ER of the un-added link contains the target link (no matter the sender or receiver or both)
+        if ( find (_nodesInEr.begin (), _nodesInEr.end (), linkInfo.senderAddr)!= _nodesInEr.end () ||
+            find (_nodesInEr.begin (), _nodesInEr.end (), linkInfo.receiverAddr) != _nodesInEr.end ()) 
+        {
+          vec.push_back (it->linkId);
+        }
+      } 
+    }
+    // add target_link
+    vec.push_back (linkInfo.linkId);
+    for (std::vector<int64_t>::iterator it = vec.begin (); it != vec.end (); ++ it)
+    {
+      std::cout<<" conflicting set: "<< *it << std::endl;
+    }
+  }
+
   bool MacLow::SenderComputeThePriority (std::string addr, bool isReceiver)
   {
+    //CollectConfilictingLinks (m_conflictingSet);
     //________________________________________________________________________________________________________________
     //                             Compute all the link in ER
     //________________________________________________________________________________________________________________

@@ -738,6 +738,7 @@ namespace ns3 {
       double GetNodeTxProbability ( uint16_t nodeId ) const;
       double InsertD0Sample (uint16_t sender, uint16_t receiver, double sample, uint32_t category);
       void GeneratePacket ();
+      void CollectConfilictingLinks ( std::vector<int64_t> &vec);
       
 
       /****************************************** PRIVATE *********************************************/
@@ -954,6 +955,8 @@ namespace ns3 {
       std::vector<uint32_t> m_packetQueue;
       UniformVariable m_uniform;
       double m_packetGenreationProbability;
+      //========================NEW DESIGN================================================
+      std::vector<int64_t> m_conflictingSet;
 
       /************************POWER CONTROL in TDMA **************************************************/
       uint32_t m_maxBiDirectionalErChangeInformTimes; 
