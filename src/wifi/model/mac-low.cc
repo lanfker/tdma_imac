@@ -371,6 +371,7 @@ namespace ns3 {
     }
     m_packetGenreationProbability = DEFAULT_PACKET_GENERATION_PROBABILITY;
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::GeneratePacket, this );
+    m_nextSendingSlot = 0; 
   }
 
   MacLow::~MacLow ()
@@ -674,35 +675,16 @@ namespace ns3 {
 
 
 
+  /* At the very beginning, every node is in CONSERVATIVE state, 
+   * If the @m_self is a receiver, and one of the links where @m_self acts as a receiver has the largest priority, stay in data channel
+   * Sender always knows when to send
+   * For a link, if receiver knows when to stay in data channel, the receiver do not have to be CONSERVATIVE for this link
+   *
+   *
+   *
+   */
   void MacLow::CalcPriority ()
   {
-    for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
-    {
-      uint32_t indx = it->sender * 10;
-      if (it->isDataEr == 1)
-      {
-        indx += 1;
-      }
-      else if (it->isDataEr == 0)
-      {
-        indx += 0;
-      }
-      m_othersControlInformationCopy[indx].d0Vec.clear ();
-      CopyErInfoItem (it, &m_othersControlInformationCopy[indx]);
-    }
-    /*
-    m_othersControlInformationCopy.clear ();
-    for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
-    {
-      ErInfoItem temp;
-      CopyErInfoItem (it, &temp);
-      m_othersControlInformationCopy.push_back (temp);
-    }
-    if ( m_othersControlInformationCopy.size () > 0)
-    {
-      quick_sort (&m_othersControlInformationCopy);
-    }
-    */
     int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
     m_currentTimeslot = currentSlot;
     Time scheduleDelay = MicroSeconds (DELAY_BEFORE_SWITCH_CHANNEL); // 6.7 ms
@@ -717,12 +699,25 @@ namespace ns3 {
       Simulator::m_nodesInDataChannel.clear ();
     }
 
+    for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
+    {
+      uint32_t indx = it->sender * 10;
+      if (it->isDataEr == 1)
+      {
+        indx += 1;
+      }
+      else if (it->isDataEr == 0)
+      {
+        indx += 0;
+      }
+      m_othersControlInformationCopy[indx].d0Vec.clear ();
+      CopyErInfoItem (it, &m_othersControlInformationCopy[indx]);
+    }
 
 
     //--------------------------------------------------------------------------------------------------
     // For all the links the current node is related to, find the link with max priority
     //--------------------------------------------------------------------------------------------------
-    //std::vector<TdmaLink> linkRelatedLinks = Simulator::FindRelatedLinks (m_self.ToString ());
     std::vector<TdmaLink> linkRelatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks; 
     if ( linkRelatedLinks.size () != 0)
     {
@@ -743,25 +738,16 @@ namespace ns3 {
       //-----------------------------------------------------------------------------------------------
       if (maxLink.senderAddr == m_self.ToString ()) 
       {
-
-        
-        
         if ((BinarySearch (Simulator::PreemptedLinks, maxLink.linkId) != 0 && m_controlInformation.size () != 0))
         {
           ScheduleControlSignalTransmission ();
         }
         else
         {
-          //Mac48Address sender = Mac48Address ( maxLink.senderAddr.c_str ());
-          //Mac48Address receiver= Mac48Address (maxLink.receiverAddr.c_str ());
           bool nodeStatus = false;
-          nodeStatus = SenderComputeThePriority (maxLink.senderAddr, false);
+          nodeStatus = SenderComputeThePriority (maxLink.senderAddr);
           if ( nodeStatus == true ) // as sender
           {
-            //m_nodesIgnoreInCurrentSlot.push_back (Mac48Address (maxLink.senderAddr.c_str ()).GetNodeId ());
-            //m_nodesIgnoreInCurrentSlot.push_back (Mac48Address (maxLink.receiverAddr.c_str ()).GetNodeId ());
-            
-
             //------------------------------------------------------------------------------------
             //                         link preemption
             //------------------------------------------------------------------------------------
@@ -814,7 +800,7 @@ namespace ns3 {
         else
         {
           bool nodeStatus = false;
-          nodeStatus = SenderComputeThePriority (maxLink.senderAddr, true);
+          nodeStatus = SenderComputeThePriority (maxLink.senderAddr);
           if (nodeStatus == true ) // as receiver
           {
             for (std::vector<TdmaLink>::iterator it = linkRelatedLinks.begin (); it != linkRelatedLinks.end (); ++ it)
@@ -970,173 +956,43 @@ namespace ns3 {
     }
   }
 
-  bool MacLow::SenderComputeThePriority (std::string addr, bool isReceiver)
+  //if conflicting set size is 0, do not send packet
+  //if return value is false and m_currentTimeslot = 0, do not send
+  bool MacLow::SenderComputeThePriority (std::string addr)
   {
-    //CollectConfilictingLinks (m_conflictingSet);
-    //________________________________________________________________________________________________________________
-    //                             Compute all the link in ER
-    //________________________________________________________________________________________________________________
-    std::vector<LinkPriority> linkPriorities;
-
-    //TdmaLink linkInfo = Simulator::FindLinkBySender (addr); // get the target link
+    bool returnValue = false;
+    if (m_conflictingSet.size () == 0)
+    {
+      return false; // the node is not a sender, CONSERVATIVE? later to consider
+    }
+    // the linkId won't be 0
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[Mac48Address (addr.c_str ()).GetNodeId ()].selfInitiatedLink;
-    // If there is no valid link initiated by the sender, return
-    if ( linkInfo.linkId == 0)
+    int64_t maxPriorityLinkId = 0;
+    for (int64_t slot = m_currentTimeslot; ; ++slot)
     {
-      return false;
-    }
-    Mac48Address sender = Mac48Address(addr.c_str ());
-    Mac48Address receiver = Mac48Address (linkInfo.receiverAddr.c_str ());
-    // if the receiver is the broadcast addr, that also means there is no valid link initiated by the sender, return 
-    if ( receiver == Mac48Address::GetBroadcast ())
-    {
-      return false;
-    }
-
-    // we set the data packet receiver address here. Later when we need to generate data packet to send at the mac layer,
-    // we need this m_dataReceiverAddr
-    if ( addr == m_self.ToString () && m_dataReceiverAddr == Mac48Address::GetBroadcast ())
-    {
-      m_dataReceiverAddr = receiver;
-      m_conflictingSetSize = 0;
-    }
-
-    std::vector<double> ers = GetErInforItemForLink (sender, receiver, Mac48Address (linkInfo.senderAddr.c_str ()), Mac48Address (linkInfo.receiverAddr.c_str ()));// get ER information (edge interference)
-
-
-    std::vector<std::string> nodesInEr;
-#ifdef ENABLE_ACK_ER
-    nodesInEr = Simulator::ListNodesInEr (sender.ToString (), ers[1], receiver.ToString (), ers[0]); // get all the nodes in ER. This vector also contains the sender and receiver of the target link
-#else
-    nodesInEr = Simulator::ListNodesInEr (receiver.ToString (), ers[0]); 
-    //nodesInEr.push_back (
-#endif
-
-    // has not calculated the target link itself 
-    for (std::vector<std::string>::iterator it = nodesInEr.begin (); it != nodesInEr.end (); ++ it) // for every node in ER.
-    {
-      //std::vector<TdmaLink> relatedLinks = Simulator::FindRelatedLinks (*it); // get its related links
-      std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[Mac48Address (it->c_str ()).GetNodeId ()].relatedLinks;
-      for (std::vector<TdmaLink>::iterator _it = relatedLinks.begin (); _it != relatedLinks.end (); ++ _it)
-      { 
-        // for all its related link, check if the link has been previously computed?
-        bool calculated = false;
-        for (std::vector<LinkPriority>::iterator pri_it = linkPriorities.begin (); pri_it != linkPriorities.end (); ++ pri_it)
+      int64_t maxPriority = 0;
+      for (std::vector<int64_t>::iterator it = m_conflictingSet.begin (); it != m_conflictingSet.end (); ++ it)
+      {
+        if (DoCalculatePriority (*it) > maxPriority)
         {
-          if (_it->linkId == pri_it->linkId )//this link has been calculated
-          {
-            calculated = true;
-            break;
-          }
-        }
-        if ( calculated == false) // if not, calculate the priority
-        {
-          LinkPriority linkPriority;
-          linkPriority.linkId = _it->linkId;
-          linkPriority.priority = DoCalculatePriority (_it->linkId);
-          linkPriority.senderAddr = _it->senderAddr;
-          linkPriority.receiverAddr = _it->receiverAddr;
-          linkPriorities.push_back (linkPriority); // save the calculated priority
-          m_conflictingSetSize ++;
+          maxPriorityLinkId = *it;
         }
       }
-    }
-
-
-    // ____________________________________________________________________________________________________________________________
-    //                      This part is similar to the Bi-directional ER logic
-    // ____________________________________________________________________________________________________________________________
-    std::vector<TdmaLink> allLinks = Simulator::ListAllLinks ();
-    for (std::vector<TdmaLink>::iterator it = allLinks.begin (); it != allLinks.end (); ++ it)
-    {
-      /*
-         std::vector<TdmaSignalMap> sig_map = Simulator::GetNodeSignalMap (it->senderAddr);
-         NS_ASSERT (sig_map.size () == 0);
-         for (std::vector<TdmaSignalMap>::iterator _it = sig_map.begin (); _it != sig_map.end (); ++ _it)
-         {
-         if (_it->from == it->receiverAddr)
-         {
-         std::cout<<Mac48Address (it->senderAddr.c_str ()).GetNodeId () <<" " <<Mac48Address (it->receiverAddr.c_str ()).GetNodeId () <<" "<< _it->outSinr << std::endl;
-         }
-         }
-         */
-      if (it->linkId == linkInfo.linkId ) // if the current link is the target link, ignore it
+      if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
       {
-        continue;
-      }
-      bool calculated = false;
-      for (std::vector<LinkPriority>::iterator pri_it = linkPriorities.begin (); pri_it != linkPriorities.end (); ++ pri_it)
-      {
-        if (it->linkId == pri_it->linkId )
+        if ( m_currentTimeslot == 0)
         {
-          calculated = true;
+          returnValue = true; // in the first timeslot, will transmit
+          continue;
+        }
+        else
+        {
+          m_nextSendingSlot = slot;
           break;
         }
       }
-      if (calculated == true)//this link has been calculated, ignore it
-      {
-        continue;
-      }
-      if (calculated == false )// if the current link has not been calculated yet, 
-      {
-        //Find nodes in ER
-
-        std::vector<double> _ers = GetErInforItemForLink (Mac48Address (it->senderAddr.c_str ()) ,Mac48Address (it->receiverAddr.c_str ()), Mac48Address (linkInfo.senderAddr.c_str ()), Mac48Address (linkInfo.receiverAddr.c_str ()));// get ER information (edge interference)
-
-        std::vector<std::string> _nodesInEr;
-
-#ifdef ENABLE_ACK_ER
-        _nodesInEr = Simulator::ListNodesInEr (it->senderAddr, _ers[1], it->receiverAddr, _ers[0]); // get all the nodes in ER. This vector also contains the sender and receiver of the target link
-#else
-        _nodesInEr = Simulator::ListNodesInEr (it->receiverAddr, _ers[0]); 
-#endif
-        //if the ER of the un-calculated link contains the target link (no matter the sender or receiver or both)
-        if ( find (_nodesInEr.begin (), _nodesInEr.end (), linkInfo.senderAddr)!= _nodesInEr.end () ||
-            find (_nodesInEr.begin (), _nodesInEr.end (), linkInfo.receiverAddr) != _nodesInEr.end ()) 
-        {
-          //calculate the priority
-          LinkPriority linkPriority;
-          linkPriority.linkId = it->linkId;
-          linkPriority.priority = DoCalculatePriority (it->linkId);
-          linkPriority.senderAddr = it->senderAddr;
-          linkPriority.receiverAddr = it->receiverAddr;
-          linkPriorities.push_back (linkPriority); // save the calculated priority
-          m_conflictingSetSize ++;
-        }
-      } 
     }
-
-#ifdef CONFLICTING_SET_PROBABILITY
-    if ( m_conflictingSetSize > 0)
-    {
-      m_selfSendingProbability = 1/(double)m_conflictingSetSize;
-    }
-    else 
-    {
-      m_selfSendingProbability = 1;
-    }
-#endif
-    //______________________________________________________________________________________________________________________________
-    //                    Check if the target link has the maximum priority
-    //______________________________________________________________________________________________________________________________
-
-    int64_t targetLinkPriority = DoCalculatePriority (linkInfo.linkId);
-    int64_t maximumPriority = 0;
-    //uint32_t max_index_recorder = 0;
-    for (std::vector<LinkPriority>::iterator it = linkPriorities.begin (); it != linkPriorities.end (); ++ it)
-    {
-      if ( it->priority > maximumPriority && it->linkId != linkInfo.linkId )
-      {
-        maximumPriority = it->priority;
-        //max_index_recorder = it - linkPriorities.begin ();
-      }
-    }
-    if (targetLinkPriority > maximumPriority)
-    {
-      Simulator::ResigerSendingNode(sender.ToString (), ers[1], receiver.ToString (), ers[0]);
-      return true;
-    }
-    return false; 
+    return returnValue;
   }
 
 
@@ -1153,18 +1009,16 @@ namespace ns3 {
   */
   int64_t MacLow::DoCalculatePriority (int64_t linkId)
   {
-    int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
-    m_currentTimeslot = currentSlot;
     int64_t base = 10;
     while (true)
     {
-      if ( currentSlot / base == 0)
+      if ( m_currentTimeslot / base == 0)
       {
         break;
       }
       base *= 10;
     }
-    int64_t seed = linkId * base + currentSlot;
+    int64_t seed = linkId * base + m_currentTimeslot;
     srand (seed ); // set rand seed;
     int64_t priority = rand () * Simulator::NodesCountUpperBound + linkId; 
     return abs (priority);
@@ -4017,24 +3871,6 @@ rxPacket:
   {
     if ( m_phy->IsStateIdle ())
     {
-      //std::cout<<m_self<<" contention delay: "<< m_currentTimeslot - m_erInfoUpdatedTimeSlot<<" m_erInfoUpdatedTimeSlot: "<< m_erInfoUpdatedTimeSlot << std::endl;
-      //m_erInfoUpdatedTimeSlot = 0;
-      /*
-      if (m_controlInformation.size () != 0)
-      {
-        ErInfoItem firstItem = m_controlInformation[0];
-        if (m_self.GetNodeId () == firstItem.receiver)
-        {
-          bool senderStatus = false;
-          senderStatus = SenderComputeThePriority (IntToMacAddress (firstItem.sender).c_str (), false );
-          if (senderStatus == true )
-          {
-            return;
-          }
-        }
-      }
-      */
-
       uint8_t payload[CONTROL_PAYLOAD_LENGTH];
       GenerateControlPayload (MAX_INFO_ITEM_SIZE, ER_INFO_ITEM_SIZE, payload);
 

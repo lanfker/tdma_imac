@@ -658,7 +658,7 @@ namespace ns3 {
       // By calculating the priority, the sender could decide if the link initialed by the sender could succeed in the priority calculation
       // If the link wins, that means the link can transmit in this timeslot, we should set the node status (active  or not) according to the
       // value returned by this method.
-      bool SenderComputeThePriority (std::string addr, bool isReceiver);
+      bool SenderComputeThePriority (std::string addr);
 
       template <typename T>
         static std::string ToString (T const &val);
@@ -957,6 +957,7 @@ namespace ns3 {
       double m_packetGenreationProbability;
       //========================NEW DESIGN================================================
       std::vector<int64_t> m_conflictingSet;
+      int64_t m_nextSendingSlot;
 
       /************************POWER CONTROL in TDMA **************************************************/
       uint32_t m_maxBiDirectionalErChangeInformTimes; 
