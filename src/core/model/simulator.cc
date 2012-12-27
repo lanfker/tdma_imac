@@ -123,7 +123,6 @@ namespace ns3 {
   std::vector<TdmaLink> Simulator::m_tdmaLinks;
   std::vector<NodeSignalMap> Simulator::m_signalMaps;
   std::vector<std::string> Simulator::NodesWillSend;
-  std::vector<uint32_t> Simulator::PreemptedLinks;
   std::vector<ControlReliability> Simulator::m_controlReliabilityCollec;
   std::vector<std::string> Simulator::m_nodesInDataChannel;
   bool Simulator::m_linksClassified = false;
@@ -132,15 +131,6 @@ namespace ns3 {
   Time Simulator::SlotBeginningTime = Seconds (0);
 
 
-  void Simulator::AddPreemptedLinks (uint32_t links)
-  {
-    PreemptedLinks.push_back (links);
-  }
-
-  void Simulator::ClearPreemptedLinks ()
-  {
-    PreemptedLinks.clear ();
-  }
 
   void Simulator::ClearSendingNodes ()
   {

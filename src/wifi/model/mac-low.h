@@ -55,6 +55,11 @@ namespace ns3 {
    * \brief listen to events coming from ns3::MacLow.
    */
   // added by Chuan
+  typedef struct NextTxSlotInfo //This is for the case when @m_self is the receiver
+  {
+    int64_t linkId;
+    int64_t nextSlot;
+  } NextTxSlotInfo;
   typedef struct LinkEstimatorItem
   {
     uint16_t DataSequenceNo; // the data sequence number from sender S to receiver R
@@ -739,7 +744,8 @@ namespace ns3 {
       double InsertD0Sample (uint16_t sender, uint16_t receiver, double sample, uint32_t category);
       void GeneratePacket ();
       void CollectConfilictingLinks ( std::vector<int64_t> &vec);
-      
+      void InitiateNextTxSlotInfo  ();
+      int64_t GetNextTxSlot (int64_t linkId);
 
       /****************************************** PRIVATE *********************************************/
     private:
@@ -958,6 +964,7 @@ namespace ns3 {
       //========================NEW DESIGN================================================
       std::vector<int64_t> m_conflictingSet;
       int64_t m_nextSendingSlot;
+      std::vector<NextTxSlotInfo> m_nextTxSlotInfo;
 
       /************************POWER CONTROL in TDMA **************************************************/
       uint32_t m_maxBiDirectionalErChangeInformTimes; 

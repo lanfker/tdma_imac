@@ -672,7 +672,35 @@ namespace ns3 {
     m_listener = 0;
   }
 
+  // do not consider the case where @m_self is the sender 
+  void MacLow::InitiateNextTxSlotInfo  ()
+  {
+    std::vector<TdmaLink> selfRelatedLinks =  Simulator::FindRelatedLinks (m_self.ToString ());
+    for (std::vector<TdmaLink>::iterator it = selfRelatedLinks.begin (); it != selfRelatedLinks.end (); ++ it)
+    {
+      if (it->senderAddr == m_self.ToString ())
+      {
+        continue;
+      }
+      NextTxSlotInfo info;
+      info.linkId = it->linkId;
+      info.nextSlot = UNDEFINED_NEXT_TX_SLOT; 
+      m_nextTxSlotInfo.push_back (info);
+    }
+  }
 
+  // do not consider the case where @m_self is the sender 
+  int64_t MacLow::GetNextTxSlot (int64_t linkId)
+  {
+    for (std::vector<NextTxSlotInfo>::iterator it = m_nextTxSlotInfo.begin (); it != m_nextTxSlotInfo.end (); ++ it)
+    {
+      if (it->linkId == linkId)
+      {
+        return it->nextSlot;
+      }
+    }
+    return UNDEFINED_NEXT_TX_SLOT; // this sentence should never be executed.
+  }
 
 
   /* At the very beginning, every node is in CONSERVATIVE state, 
@@ -693,26 +721,11 @@ namespace ns3 {
       // for a new time slot, clear the data for the previous time slot and update the slot beginning time to identify that
       // we are working on a new slot now;
       Simulator::ClearSendingNodes ();
-      Simulator::ClearPreemptedLinks ();
       Simulator::SlotBeginningTime = Simulator::Now (); 
       Simulator::CountFinalControlReliability ();
       Simulator::m_nodesInDataChannel.clear ();
     }
 
-    for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
-    {
-      uint32_t indx = it->sender * 10;
-      if (it->isDataEr == 1)
-      {
-        indx += 1;
-      }
-      else if (it->isDataEr == 0)
-      {
-        indx += 0;
-      }
-      m_othersControlInformationCopy[indx].d0Vec.clear ();
-      CopyErInfoItem (it, &m_othersControlInformationCopy[indx]);
-    }
 
 
     //--------------------------------------------------------------------------------------------------
@@ -736,97 +749,79 @@ namespace ns3 {
       //-----------------------------------------------------------------------------------------------
       //If for the max priority link, the current node is the sender, 
       //-----------------------------------------------------------------------------------------------
+      // DO NOT WORRY ABOUT CONSERVATIVE PROBLEM
       if (maxLink.senderAddr == m_self.ToString ()) 
       {
-        if ((BinarySearch (Simulator::PreemptedLinks, maxLink.linkId) != 0 && m_controlInformation.size () != 0))
+        bool initialSlotTxStatus = false;
+        if ( m_currentTimeslot == 0)
         {
-          ScheduleControlSignalTransmission ();
+          CollectConfilictingLinks (m_conflictingSet);
+          initialSlotTxStatus = SenderComputeThePriority (m_self.ToString ());
         }
-        else
+        if (m_currentTimeslot == m_nextSendingSlot || initialSlotTxStatus == true)
         {
-          bool nodeStatus = false;
-          nodeStatus = SenderComputeThePriority (maxLink.senderAddr);
-          if ( nodeStatus == true ) // as sender
+          NS_ASSERT (m_conflictingSet.size () != 0);
+          CollectConfilictingLinks (m_conflictingSet);
+          SenderComputeThePriority (m_self.ToString ()); //Compute for the next sending timeslot
+          Simulator::m_nodesInDataChannel.push_back (m_self.ToString());
+          m_nodeActive = true; 
+          // once the node knows it could be active in the slot, stop computing
+          Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
+
+
+          if (!m_phy->IsStateSwitching ())   
           {
-            //------------------------------------------------------------------------------------
-            //                         link preemption
-            //------------------------------------------------------------------------------------
-            for (std::vector<TdmaLink>::iterator it = linkRelatedLinks.begin (); it != linkRelatedLinks.end (); ++ it)
+            m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
+            m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
+            if (m_queueEmptyCallback () == true && m_dataReceiverAddr != Mac48Address::GetBroadcast ())
             {
-              if (it->linkId != maxLink.linkId )
-              {
-                if (BinarySearch (Simulator::PreemptedLinks, it->linkId) == 0)
-                {
-                  Simulator::AddPreemptedLinks (it->linkId);
-                  QuickSort quick(&Simulator::PreemptedLinks);
-                }
-              }
+              Simulator::Schedule (MicroSeconds (TIME_TO_TX_IN_SLOT),&MacLow::GenerateDataPacketAndSend, this);
             }
-            Simulator::m_nodesInDataChannel.push_back (m_self.ToString());
-            m_nodeActive = true; 
-            // once the node knows it could be active in the slot, stop computing
-            Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
-
-
-            if (!m_phy->IsStateSwitching ())   
+            else
             {
-              m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
-              m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
-              if (m_queueEmptyCallback () == true && m_dataReceiverAddr != Mac48Address::GetBroadcast ())
-              {
-                Simulator::Schedule (MicroSeconds (TIME_TO_TX_IN_SLOT),&MacLow::GenerateDataPacketAndSend, this);
-              }
-              else
-              {
-                Simulator::Schedule (MicroSeconds (TIME_TO_TX_IN_SLOT), &MacLow::m_startTxCallback, this);
-              }
+              Simulator::Schedule (MicroSeconds (TIME_TO_TX_IN_SLOT), &MacLow::m_startTxCallback, this);
             }
           }
-          else if (m_controlInformation.size () != 0 )
-          {
-            ScheduleControlSignalTransmission ();
-          } 
         }
+        else if (m_controlInformation.size () != 0 )
+        {
+          ScheduleControlSignalTransmission ();
+        } 
       }
       //-----------------------------------------------------------------------------------------------
       // If for the max priority link, the current node is the receiver
       //-----------------------------------------------------------------------------------------------
       else if ( maxLink.receiverAddr == m_self.ToString ())
       {
-        if ((BinarySearch (Simulator::PreemptedLinks, maxLink.linkId) != 0 && m_controlInformation.size () != 0))
+        bool nodeStatus = false;
+        int64_t nextRxSlot = GetNextTxSlot (maxLink.linkId);
+        if ( nextRxSlot == UNDEFINED_NEXT_TX_SLOT)
         {
-          ScheduleControlSignalTransmission ();
+          nodeStatus = true;  //HERE, WE ARE TRYING TO BE CONSERVATIVE
+        }
+        else if ( nextRxSlot == m_currentTimeslot) //it's time for @m_self to receive data packet from a sender
+        {
+          nodeStatus = true;
         }
         else
         {
-          bool nodeStatus = false;
-          nodeStatus = SenderComputeThePriority (maxLink.senderAddr);
-          if (nodeStatus == true ) // as receiver
+          nodeStatus = false;
+        }
+        //nodeStatus = SenderComputeThePriority (maxLink.senderAddr);
+        if (nodeStatus == true ) // as receiver
+        {
+          m_nodeActive = true; 
+          // once the node knows it could be active in the slot, stop computing
+          Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
+          if (!m_phy->IsStateSwitching ())   
           {
-            for (std::vector<TdmaLink>::iterator it = linkRelatedLinks.begin (); it != linkRelatedLinks.end (); ++ it)
-            {
-              if (it->linkId != maxLink.linkId )
-              {
-                if (BinarySearch (Simulator::PreemptedLinks, it->linkId) == 0)
-                {
-                  Simulator::AddPreemptedLinks (it->linkId);
-                  QuickSort quick(&Simulator::PreemptedLinks);
-                }
-              }
-            }
-            m_nodeActive = true; 
-            // once the node knows it could be active in the slot, stop computing
-            Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
-            if (!m_phy->IsStateSwitching ())   
-            {
-              m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
-              m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
-            }
-          } // failed to have the maximum priority, try to send control signal
-          else if (m_controlInformation.size () != 0 )
-          {
-            ScheduleControlSignalTransmission ();
+            m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
+            m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
           }
+        } // failed to have the maximum priority, try to send control signal
+        else if (m_controlInformation.size () != 0 )
+        {
+          ScheduleControlSignalTransmission ();
         }
       }
     }
@@ -843,6 +838,24 @@ namespace ns3 {
 
   void MacLow::CollectConfilictingLinks ( std::vector<int64_t> &vec)
   {
+    // This for loop was belong to @CalcPriority
+    for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
+    {
+      uint32_t indx = it->sender * 10;
+      if (it->isDataEr == 1)
+      {
+        indx += 1;
+      }
+      else if (it->isDataEr == 0)
+      {
+        indx += 0;
+      }
+      m_othersControlInformationCopy[indx].d0Vec.clear ();
+      CopyErInfoItem (it, &m_othersControlInformationCopy[indx]);
+    }
+
+
+
     // clear pervious results
     vec.clear ();
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].selfInitiatedLink;
@@ -950,10 +963,6 @@ namespace ns3 {
     }
     // add target_link
     vec.push_back (linkInfo.linkId);
-    for (std::vector<int64_t>::iterator it = vec.begin (); it != vec.end (); ++ it)
-    {
-      std::cout<<" conflicting set: "<< *it << std::endl;
-    }
   }
 
   //if conflicting set size is 0, do not send packet
@@ -1102,12 +1111,12 @@ namespace ns3 {
           break;
         }
         /*
-        if (find (controlSenderEr.begin (), controlSenderEr.end (), *iter) != controlSenderEr.end ())
-        {
-          receiveOrNot = true;
-          break;
-        }
-        */
+           if (find (controlSenderEr.begin (), controlSenderEr.end (), *iter) != controlSenderEr.end ())
+           {
+           receiveOrNot = true;
+           break;
+           }
+           */
       }
       if (receiveOrNot == true) 
       {
@@ -2983,7 +2992,7 @@ rxPacket:
           payloadItem.edgeInterferenceW = it->LastAckErEdgeInterferenceW;
           payloadItem.updateSeqNo = (payloadItem.updateSeqNo + 1 ) % MAX_VERSION_NUMBER;
 #ifdef ENABLE_ACK_ER
-           payloadItem.itemPriority = DEFAULT_INFO_ITEM_PRIORITY + EXTRA_HIGHEST_PRIORITY_SENDING_TRIALS;
+          payloadItem.itemPriority = DEFAULT_INFO_ITEM_PRIORITY + EXTRA_HIGHEST_PRIORITY_SENDING_TRIALS;
 #else 
           payloadItem.itemPriority = 0;
 #endif
@@ -3376,13 +3385,13 @@ rxPacket:
                       std::cout<<m_self<< " sampling, cat_1, quantile deliver time: "<< _iterator->d0CategoryOne<<" for: "<< controlPacketSender<<" sample: "<< deliverTime << std::endl;
                     }
                     /*
-                    else if (m_self.GetNodeId () == erItem.sender || m_self.GetNodeId () == erItem.receiver)
-                    {
-                      uint32_t deliverTimeFromGeneration = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, erItem.transmittedGenerationTime);
-                      _iterator->d0CategoryOne = InsertD0Sample (sender, receiver, (double)deliverTimeFromGeneration, category);
-                      std::cout<<m_self<< " sampling, cat_1, quantile deliver time: "<< _iterator->d0CategoryOne<<" for: "<< controlPacketSender<<" sample: "<< deliverTimeFromGeneration << std::endl;
-                    }
-                    */
+                       else if (m_self.GetNodeId () == erItem.sender || m_self.GetNodeId () == erItem.receiver)
+                       {
+                       uint32_t deliverTimeFromGeneration = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, erItem.transmittedGenerationTime);
+                       _iterator->d0CategoryOne = InsertD0Sample (sender, receiver, (double)deliverTimeFromGeneration, category);
+                       std::cout<<m_self<< " sampling, cat_1, quantile deliver time: "<< _iterator->d0CategoryOne<<" for: "<< controlPacketSender<<" sample: "<< deliverTimeFromGeneration << std::endl;
+                       }
+                       */
                   }
                   if (category == ER_INFO_ITEM_CATEGORY_TWO && d0VecIterator->secondCategorySampled == false)
                   {
@@ -3912,7 +3921,7 @@ rxPacket:
     std::cout<<Simulator::Now () <<" "<<m_self<<" queue_size: "<< m_packetQueue.size () << std::endl;
     if ( m_packetQueue.size () > 0 ) // if there are no packets to send, just return;
     {
-        m_packetQueue.pop_back ();
+      m_packetQueue.pop_back ();
     }
     else
     {
@@ -4258,33 +4267,33 @@ rxPacket:
   }
 
   /*
-  ErInfoItem MacLow::BinarySearchErInfoItem (uint32_t itemId)
-  {
-    int low = 0;
-    int high = m_othersControlInformationCopy.size () - 1;
-    int mid = 0;
-    while ( low <= high)
-    {
-      mid = low + (high-low)/2; 
-      if ( m_othersControlInformationCopy[mid].itemId == itemId )
-      {
-        return m_othersControlInformationCopy[mid];
-      }
-      else if ( m_othersControlInformationCopy[mid].itemId < itemId)
-      {
-        low = mid + 1;
-      }
-      else  if ( m_othersControlInformationCopy[mid].itemId > itemId)
-      {
-        high = mid - 1;
-      }
-    }
-    ErInfoItem item = GenerateDefaultErInfoItem (m_self.GetNodeId (), m_self.GetNodeId (), true);
-    item.sender = 0;
-    item.receiver = 0;
-    return item;
-  }
-  */
+     ErInfoItem MacLow::BinarySearchErInfoItem (uint32_t itemId)
+     {
+     int low = 0;
+     int high = m_othersControlInformationCopy.size () - 1;
+     int mid = 0;
+     while ( low <= high)
+     {
+     mid = low + (high-low)/2; 
+     if ( m_othersControlInformationCopy[mid].itemId == itemId )
+     {
+     return m_othersControlInformationCopy[mid];
+     }
+     else if ( m_othersControlInformationCopy[mid].itemId < itemId)
+     {
+     low = mid + 1;
+     }
+     else  if ( m_othersControlInformationCopy[mid].itemId > itemId)
+     {
+     high = mid - 1;
+     }
+     }
+     ErInfoItem item = GenerateDefaultErInfoItem (m_self.GetNodeId (), m_self.GetNodeId (), true);
+     item.sender = 0;
+     item.receiver = 0;
+     return item;
+     }
+     */
 
 
   uint32_t MacLow::BinarySearch (std::vector<uint32_t> &vec, uint32_t key)
@@ -4415,7 +4424,7 @@ rxPacket:
     {
       if ( it->nodeId == item.nodeId)
       {
-        #ifdef ESTIMATED_MAX 
+#ifdef ESTIMATED_MAX 
         if (it->txProbability == DEFAULT_TX_PROBABILITY && item.txProbability != 0)
         {
           it->txProbability = item.txProbability;
@@ -4424,17 +4433,17 @@ rxPacket:
         {
           it->txProbability = item.txProbability;
         }
-        #endif
-        #ifdef TX_DURATION_PROBABILITY
+#endif
+#ifdef TX_DURATION_PROBABILITY
         it->txProbability = item.txProbability;
-        #endif
-        #ifdef ESTIMATED_3_STD
+#endif
+#ifdef ESTIMATED_3_STD
         it->difference = item.txProbability - it->mean;
         it->increment = m_ewmaCoefficient * it->difference;
         it->mean = it->mean + it->difference;
         it->variance = (1 - m_ewmaCoefficient)* (it->mean + it->difference * it->increment);
         it->txProbability = it->mean + 3 * sqrt (it->variance);
-        #endif
+#endif
         return;
       }
     }
@@ -4512,7 +4521,7 @@ rxPacket:
       return;
     }
     Simulator::Schedule (generationInterval, &MacLow::GeneratePacket, this);
-    
+
   }
 
 } // namespace ns3

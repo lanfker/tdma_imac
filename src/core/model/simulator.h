@@ -170,9 +170,7 @@ public:
   static Time SimulationStopTime;
   static Time LearningTimeDuration;
   static std::vector<std::string> NodesWillSend;
-  static std::vector<uint32_t> PreemptedLinks;
   // if the @Simulator::Now () is different from this value, that means, we are entering a new slot, therefore, we need to clear
-  // all the value in the two vectors: @NodesWillSend and @PreemptedLinks
   static Time SlotBeginningTime; 
 
   /**
@@ -187,8 +185,6 @@ public:
    */
   static void Stop (void);
 
-  static void AddPreemptedLinks (uint32_t links);
-  static void ClearPreemptedLinks ();
   /**
    * Force the Simulator::run method to return to the caller when the
    * expiration time of the next event to be processed is greater than
