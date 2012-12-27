@@ -1,9 +1,10 @@
 \section {PRKS- Revision Reminder}
 \begin{itemize}
-  \item No previous $d_0$ concept, which means we do not have to do $d_0$ sampling anymore $\rightarrow$ We can re-define the $ER-INFO-ITEM$ we need to transmit.
-  \item GetErInfoItemForLink (.) needs to change
+  \item No previous $d_0$ concept, which means we do not have to do $d_0$ sampling anymore $\rightarrow$ We can re-define the $ER-INFO-ITEM$ we need to transmit.(DONE)
+  \item GetErInfoItemForLink (.) needs to change (DONE)
   \item If conflicting set size is 0, do not send. (not a sender). If return value of SenderComputePriority is false and m\_currentTimeslot = 0, do not send (DONE)
   \item If currentTimeslot = 0 or is sending timesot, collect conflicting set and compute priority (DONE)
   \item Note that there is no concept of preempted links anymore. (DONE)
-  \item Update next transmission slot information at the receiver side. 
+  \item Update next transmission slot information at the receiver side. (DONE)
+  \item disable ACK ER control (DONE)
 \end{itemize}

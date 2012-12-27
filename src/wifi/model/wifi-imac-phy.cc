@@ -645,19 +645,14 @@ switchChannel:
       double niW = DbmToW (niDbm);
       double initialErInterferenceW = niW - NOISE_POWER_W;
 #endif
-      m_initialErCallback (m_self.GetNodeId (), returnAddress.GetNodeId (), true, initialErInterferenceW);
+      m_initialErCallback (m_self.GetNodeId (), returnAddress.GetNodeId (),initialErInterferenceW);
     }
 
     std::vector<TdmaLink> relatedLinks = Simulator::FindRelatedLinks (m_self.ToString ());
     for (std::vector<TdmaLink>::iterator _it = relatedLinks.begin (); _it != relatedLinks.end (); ++ _it)
     {
-      bool isDataEr = false;
       uint16_t sender = Mac48Address (_it->senderAddr.c_str ()).GetNodeId ();
       uint16_t receiver = Mac48Address (_it->receiverAddr.c_str ()).GetNodeId ();
-      if (receiver == m_self.GetNodeId ())
-      {
-        isDataEr = true;
-      }
       double distance = m_channel->GetDistanceBetweenNodes (Mac48Address (_it->senderAddr.c_str ()), Mac48Address (_it->receiverAddr.c_str ()));
 #ifndef RID_INITIAL_ER
       double edgePowerDbm = m_channel->GetRxPowerByDistance (GetPowerDbm (0) + GetTxGain (), distance * 1.5) + GetRxGain ();
@@ -671,7 +666,7 @@ switchChannel:
       double initialErInterferenceW = niW - NOISE_POWER_W;
 #endif
 
-      m_initialErCallback (sender, receiver, isDataEr, initialErInterferenceW);
+      m_initialErCallback (sender, receiver, initialErInterferenceW);
     }
     return returnAddress;
   }
@@ -1440,7 +1435,7 @@ maybeCcaBusy:
    * @lastErEdgeInterference is separately maintained
    * return the boundary interference of the Exclusive region
    */
-  double WifiImacPhy::GetErEdgeInterference (double deltaInterferenceW, double lastErEdgeInterferenceW, Mac48Address *edgeNode, bool conditionTwoMeet, bool risingAchieved) // both parameters are in the unit of Watt
+  double WifiImacPhy::GetErEdgeInterference (double deltaInterferenceW, double lastErEdgeInterferenceW, Mac48Address *edgeNode, bool conditionTwoMeet) // both parameters are in the unit of Watt
   {
     bool isEdgeFound = false;
     *edgeNode = Mac48Address::GetBroadcast ();
@@ -1457,17 +1452,6 @@ maybeCcaBusy:
         #else
         //also consider the tx Probability;
         supposedInterferenceW = DbmToW (supposedInterferenceDbm) * m_nodeTxProbabilityCallback ( (*it)->from.GetNodeId () ); 
-          // if not define CONSERVATIVE_ER_CHANGE, we get the normal supposed InterferenceW with tx probability
-          #ifdef  CONSERVATIVE_ER_CHANGE
-          if (risingAchieved == false )
-          {
-            supposedInterferenceW = DbmToW (supposedInterferenceDbm) * m_nodeTxProbabilityCallback ( (*it)->from.GetNodeId () ); 
-          }
-          else if (risingAchieved == true)
-          {
-            supposedInterferenceW = DbmToW (supposedInterferenceDbm);
-          }
-          #endif
         #endif
         if (supposedInterferenceW < m_erEdgeInterferenceW) // if the supposed interference is less than the last ER edge interference, we should start computing the delta interference power; 
         {

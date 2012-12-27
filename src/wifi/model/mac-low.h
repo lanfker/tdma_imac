@@ -105,17 +105,9 @@ namespace ns3 {
     uint32_t itemId;
     uint16_t sender;
     uint16_t receiver;
-    bool isDataEr; // if this is true, the @edgeInterferenceW is the DATA ER edge interference, if false, it is the ACK ER edge interference
-    float previousEdgeInterferenceW;
     float edgeInterferenceW;
     uint8_t updateSeqNo;
     int32_t itemPriority;
-    uint32_t transmittedReceptionTime;
-    uint32_t actualReceptionTime;
-    bool newEstimationMade;
-    std::vector<LinkD0> d0Vec;
-    uint32_t transmittedGenerationTime;
-    bool risingAchieved;
   } ErInfoItem;
 
 
@@ -124,10 +116,7 @@ namespace ns3 {
     std::vector<ErInfoItem> vec;
     double maxErEdgeInterferenceW;
     double controlChannelInterferenceW;
-    uint32_t linkD0Size;
-    double d0CategoryOne;
-    double d0CategoryTwo;
-    double txProbability;
+    int64_t nextRxTimeslot;
   } Payload;
 
   typedef struct NodesTxProbability
@@ -737,7 +726,7 @@ namespace ns3 {
       void CopyErInfoItem (std::vector<ErInfoItem>::iterator it, ErInfoItem *b);
       ErInfoItem BinarySearchErInfoItem (uint32_t itemId);
       double FindDeliverTime (uint16_t sender, uint16_t receiver, std::vector<LinkD0>* vecPtr, uint32_t category);
-      void SetInitialEr (uint16_t sender, uint16_t receiver, bool isDataEr, double initialErW);
+      void SetInitialEr (uint16_t sender, uint16_t receiver,  double initialErW);
       std::vector<LinkD0>::iterator  FindLinkD0Item ( uint16_t sender, uint16_t receiver, std::vector<LinkD0> &vec);
       void UpdateNodeTxProbability ( NodesTxProbability item );
       double GetNodeTxProbability ( uint16_t nodeId ) const;
@@ -746,6 +735,7 @@ namespace ns3 {
       void CollectConfilictingLinks ( std::vector<int64_t> &vec);
       void InitiateNextTxSlotInfo  ();
       int64_t GetNextTxSlot (int64_t linkId);
+      void UpdateNextRxSlot (int64_t linkId, int64_t nextRxSlot);
 
       /****************************************** PRIVATE *********************************************/
     private:

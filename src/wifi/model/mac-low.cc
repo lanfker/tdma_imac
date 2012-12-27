@@ -702,6 +702,17 @@ namespace ns3 {
     return UNDEFINED_NEXT_TX_SLOT; // this sentence should never be executed.
   }
 
+  void MacLow::UpdateNextRxSlot (int64_t linkId, int64_t nextRxSlot)
+  {
+    for (std::vector<NextTxSlotInfo>::iterator it = m_nextTxSlotInfo.begin (); it != m_nextTxSlotInfo.end (); ++ it)
+    {
+      if (it->linkId == linkId)
+      {
+        it->nextSlot = nextRxSlot;
+      }
+    }
+  }
+
 
   /* At the very beginning, every node is in CONSERVATIVE state, 
    * If the @m_self is a receiver, and one of the links where @m_self acts as a receiver has the largest priority, stay in data channel
@@ -802,6 +813,7 @@ namespace ns3 {
         else if ( nextRxSlot == m_currentTimeslot) //it's time for @m_self to receive data packet from a sender
         {
           nodeStatus = true;
+          UpdateNextRxSlot (maxLink.linkId, UNDEFINED_NEXT_TX_SLOT); // Even though we set this back to initial value, meaning undefined rx timeslot. as long as the node successfully receives a data packet in this current timeslot, this value will be re-written.
         }
         else
         {
@@ -842,15 +854,7 @@ namespace ns3 {
     for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
     {
       uint32_t indx = it->sender * 10;
-      if (it->isDataEr == 1)
-      {
-        indx += 1;
-      }
-      else if (it->isDataEr == 0)
-      {
-        indx += 0;
-      }
-      m_othersControlInformationCopy[indx].d0Vec.clear ();
+      indx += 1; // for data er
       CopyErInfoItem (it, &m_othersControlInformationCopy[indx]);
     }
 
@@ -1038,25 +1042,21 @@ namespace ns3 {
 
     Ptr<WifiImacPhy> imacPhy = m_phy->GetObject<WifiImacPhy> ();
     Payload payload = ParseControlPacketPayload (buffer, hdr );
+    TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
+    if ( linkInfo.receiverAddr == m_self.ToString ())
+    {
+      UpdateNextRxSlot (linkInfo.linkId, payload.nextRxTimeslot);
+    }
     for (std::vector<ErInfoItem>::iterator _it = payload.vec.begin (); _it != payload.vec.end (); ++ _it)
     {
-      //Mac48Address sender = Mac48Address (IntToMacAddress (_it->sender).c_str ());
-      //Mac48Address receiver= Mac48Address (IntToMacAddress (_it->receiver).c_str ());
 
-      Mac48Address originalSender = _it->isDataEr == true ? Mac48Address ( IntToMacAddress (_it->receiver).c_str ()) : Mac48Address ( IntToMacAddress (_it->sender).c_str ());
-      if ( originalSender == m_self)
+      Mac48Address originalSender = Mac48Address ( IntToMacAddress (_it->sender).c_str ());
+      if ( originalSender == m_self) // if is an Info Item of my own when as sender, @m_self always has the latest information
       {
         continue;
       }
       _it->itemId = (_it->sender * Simulator::NodesCountUpperBound + _it->receiver) * 10;
-      if ( _it->isDataEr == true )
-      {
-        _it->itemId += 1;
-      }
-      else if (_it->isDataEr == false)
-      {
-        _it->itemId += 0;
-      }
+      _it->itemId += 1; //for data er
 
       //-------------------------------------------------------------------------------------
       // Check the ER edge stored locally, use the larger ER to decide if the current node
@@ -1079,7 +1079,6 @@ namespace ns3 {
       nodesInEr = Simulator::ListNodesInEr (originalSender.ToString (), erEdgeW);
 
       bool receiveOrNot = false;
-      //std::vector<TdmaLink> relatedLinks = Simulator::FindRelatedLinks (m_self.ToString ());
       std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks;
       std::vector<std::string> nodesNeedCheck;
       for (std::vector<TdmaLink>::iterator iter = relatedLinks.begin (); iter != relatedLinks.end (); ++ iter)
@@ -1102,7 +1101,6 @@ namespace ns3 {
         }
       }
       nodesNeedCheck.push_back (m_self.ToString ());
-      //std::vector<std::string> controlSenderEr = Simulator::ListNodesInEr (hdr.GetAddr2 ().ToString (), payload.maxErEdgeInterferenceW);
       for (std::vector<std::string>::iterator iter = nodesNeedCheck.begin (); iter != nodesNeedCheck.end () && receiveOrNot == false; ++ iter)
       {
         if ( find (nodesInEr.begin (), nodesInEr.end (), *iter) != nodesInEr.end ())
@@ -1110,62 +1108,10 @@ namespace ns3 {
           receiveOrNot = true;
           break;
         }
-        /*
-           if (find (controlSenderEr.begin (), controlSenderEr.end (), *iter) != controlSenderEr.end ())
-           {
-           receiveOrNot = true;
-           break;
-           }
-           */
       }
       if (receiveOrNot == true) 
       {
         UpdateReceivedErInfoItem (*_it, hdr.GetAddr2 ());
-      }
-
-      for (std::vector<TdmaLink>::iterator iter = relatedLinks.begin (); iter != relatedLinks.end (); ++ iter)
-      {
-        if ( (iter->senderAddr == m_self.ToString () && iter->receiverAddr == hdr.GetAddr2 ().ToString ()) ||
-            (iter->receiverAddr == m_self.ToString () && iter->senderAddr == hdr.GetAddr2 ().ToString () )) 
-        {
-          uint16_t sender = Mac48Address (iter->senderAddr.c_str ()).GetNodeId ();
-          uint16_t receiver = Mac48Address (iter->receiverAddr.c_str ()).GetNodeId ();
-          std::vector<LinkD0>::iterator self_it = FindLinkD0Item (sender, receiver, m_linkD0Self);
-          if ( self_it != m_linkD0Self.end ())
-          {
-            if ( payload.d0CategoryOne != IMPOSSIBLE_D0_VALUE)
-            {
-              self_it->d0CategoryOne = payload.d0CategoryOne;
-            }
-            if ( payload.d0CategoryTwo != IMPOSSIBLE_D0_VALUE)
-            {
-              self_it->d0CategoryTwo = payload.d0CategoryTwo;
-            }
-          }
-          if ( self_it == m_linkD0Self.end () )
-          {
-            LinkD0 linkD0;
-            linkD0.sender = Mac48Address (iter->senderAddr.c_str ()).GetNodeId ();
-            linkD0.receiver = Mac48Address (iter->receiverAddr.c_str ()).GetNodeId ();
-            if ( payload.d0CategoryOne != IMPOSSIBLE_D0_VALUE)
-            {
-              linkD0.d0CategoryOne = payload.d0CategoryOne;
-            }
-            else 
-            {
-              linkD0.d0CategoryOne = 0;
-            }
-            if ( payload.d0CategoryTwo != IMPOSSIBLE_D0_VALUE)
-            {
-              linkD0.d0CategoryTwo = payload.d0CategoryTwo;
-            }
-            else
-            {
-              linkD0.d0CategoryTwo = 0;
-            }
-            m_linkD0Self.push_back (linkD0);
-          }
-        }
       }
     }
 
@@ -1181,10 +1127,6 @@ namespace ns3 {
       senderSignalMap = imacPhy-> GetSignalMapItem (hdr.GetAddr2 ()); 
     }
 
-    NodesTxProbability nodesTxProb;
-    nodesTxProb.nodeId = hdr.GetAddr2 ().GetNodeId ();
-    nodesTxProb.txProbability = payload.txProbability;
-    UpdateNodeTxProbability (nodesTxProb);
   }
 
   void MacLow::ReceiveOk (Ptr<Packet> packet, double rxSnr, WifiMode txMode, WifiPreamble preamble)
@@ -1230,12 +1172,14 @@ namespace ns3 {
         Mac48Address ackSenderAddress = receiverAddress.Get ();
         std::cout<<"4: "<<Simulator::Now ()<<" ack from " << ackSenderAddress << " to "<<m_self <<" is received" <<std::endl;
         AckSequenceNoTag ackSequenceNoTag; 
+        /*  //DISABLE ACK ER AND ACK PDR 
         if (packet->FindFirstMatchingByteTag (ackSequenceNoTag) )
         {
           //for ack link, the sender is the receiver of the data link and the receiver is the sender of the data link
           //so m_self as the sender of the data link should be the first parameter
           UpdateReceivedAckPacketNumbers (m_self, ackSenderAddress, ackSequenceNoTag.Get ()); //?
         }
+        */
       }
 
 
@@ -2366,17 +2310,10 @@ rxPacket:
     ErInfoItem item;
     item.sender = sender;
     item.receiver = receiver;
-    item.isDataEr = isDataEr;
-    item.previousEdgeInterferenceW = IMPOSSIBLE_ER;
     item.edgeInterferenceW = IMPOSSIBLE_ER;
     item.updateSeqNo = 0;
     item.itemPriority = 0;
-    item.transmittedReceptionTime = m_currentTimeslot;
-    item.newEstimationMade = false;
     item.itemId = (sender * Simulator::NodesCountUpperBound + receiver) * 10;
-    item.actualReceptionTime = m_currentTimeslot;
-    item.transmittedGenerationTime = m_currentTimeslot % MAX_TIME_SLOT_IN_PAYLOAD;
-    item.risingAchieved = false;
     if ( isDataEr == true )
     {
       item.itemId += 1;
@@ -2385,173 +2322,45 @@ rxPacket:
     {
       item.itemId += 0;
     }
-    //std::vector<TdmaLink> relatedLinks = Simulator::FindRelatedLinks (m_self.ToString ());
-    std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks;
-    for (std::vector<TdmaLink>::iterator it = relatedLinks.begin (); it != relatedLinks.end (); ++ it)
-    {
-      uint16_t relatedLinkSender = Mac48Address (it->senderAddr.c_str ()).GetNodeId ();
-      uint16_t relatedLinkReceiver = Mac48Address (it->receiverAddr.c_str ()).GetNodeId ();
-      LinkD0 linkD0;
-      linkD0.sender = relatedLinkSender;
-      linkD0.receiver = relatedLinkReceiver;
-      linkD0.d0CategoryOne = 0;
-      linkD0.d0CategoryTwo = 0;
-      linkD0.firstCategorySampled = false;
-      linkD0.secondCategorySampled = false;
-      item.d0Vec.push_back (linkD0);
-    }
     return item;
   }
 
   /* If the ER info item expired, we return IMPOSSIBLE_ER, which makes the ER size be zero. 
    * For d_0 implementation, if a new ER item has been received for some time smaller than d_0, we still use the previous ER info item,
    * In this way, we are trying to avoid channel inconsistency
+   * NO D_0 CONCEPT ANY MORE
    */
   std::vector<double> MacLow::GetErInforItemForLink (Mac48Address sender, Mac48Address receiver, Mac48Address targetSender, Mac48Address targetReceiver)
   {
-    uint32_t category = ER_INFO_ITEM_CATEGORY_TWO;
-    if ( sender == targetSender && receiver == targetReceiver)
-    {
-      category = ER_INFO_ITEM_CATEGORY_ONE;
-    }
-    bool dataFound = false, ackFound = false; //if not found, return the initial er edge
+    bool dataFound = false;    
     std::vector<double> retVector; // the first element is the data er, the second element is the ack er
     // er info of the current node its own
     for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
     {
       if (it->sender == sender.GetNodeId () && it->receiver == receiver.GetNodeId ())
       {
-        double expectedDeliverTime = FindDeliverTime (it->sender, it->receiver, &m_linkD0Self, category);
-        if ( it->isDataEr == true )
-        {
-          uint32_t compare_timeslot = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, it->transmittedReceptionTime);
-          if ( compare_timeslot >= expectedDeliverTime + it->transmittedReceptionTime )
-          {
-            if (it->actualReceptionTime + expectedDeliverTime + ITEM_LIFE_TIMESLOT > m_currentTimeslot)
-            {
-              dataFound = true;
-              retVector.insert ( retVector.begin (), it->edgeInterferenceW);
-            }
-          }
-          else if (compare_timeslot < expectedDeliverTime + it->transmittedReceptionTime)
-          {
-            dataFound = true;
-            retVector.insert ( retVector.begin (), it->previousEdgeInterferenceW);
-          }
-        }
-        else if (it->isDataEr == false)
-        {
-          uint32_t compare_timeslot = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, it->transmittedReceptionTime);
-          if ( compare_timeslot >= expectedDeliverTime + it->transmittedReceptionTime )
-          {
-            if (it->actualReceptionTime + expectedDeliverTime + ITEM_LIFE_TIMESLOT > m_currentTimeslot)
-            {
-              ackFound = true;
-              retVector.push_back (it->edgeInterferenceW);
-            }
-          }
-          else if (compare_timeslot < expectedDeliverTime + it->transmittedReceptionTime)
-          {
-            ackFound = true;
-            retVector.push_back (it->previousEdgeInterferenceW);
-          }
-        }
-
-        if (retVector.size () == 2)
-        {
-          return retVector;
-        }
+        dataFound = true;
+        retVector.insert ( retVector.begin (), it->edgeInterferenceW);
+        return retVector;
       }
     }
 
 
-    //ErInfoItem dataErItem = BinarySearchErInfoItem ((sender.GetNodeId () * Simulator::NodesCountUpperBound + receiver.GetNodeId ())*10 + 1); // data er item;
     ErInfoItem dataErItem = m_othersControlInformationCopy[sender.GetNodeId () * 10 + 1];
     if ( dataErItem.sender != 0)
     {
-      //std::cout<<" dataErItem.sender: "<< dataErItem.sender <<" sender.GetNodeId (): "<< sender.GetNodeId ()<< " dataErItem.receiver: "<< dataErItem.receiver <<" receiver.GetNodeId (): "<< receiver.GetNodeId () << std::endl;;
-      uint32_t d_0 = 0;
-      for (std::vector<LinkD0>::iterator __it = dataErItem.d0Vec.begin (); __it != dataErItem.d0Vec.end (); ++ __it)
-      {
-        if ( __it->sender == targetSender.GetNodeId () && __it->receiver == targetReceiver.GetNodeId ())
-        {
-          if (category == ER_INFO_ITEM_CATEGORY_ONE )
-          {
-            d_0 = (uint32_t)__it->d0CategoryOne;
-          }
-          else if (category == ER_INFO_ITEM_CATEGORY_TWO)
-          {
-            d_0 = (uint32_t)__it->d0CategoryTwo;
-          }
-          break;
-        }
-      }
-      uint32_t compare_timeslot = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, dataErItem.transmittedReceptionTime);
-      if ( compare_timeslot >= d_0 + dataErItem.transmittedReceptionTime )
-      {
-        if (dataErItem.actualReceptionTime + d_0 + ITEM_LIFE_TIMESLOT > m_currentTimeslot)
-        {
-          dataFound = true;
-          retVector.insert ( retVector.begin (), (double)dataErItem.edgeInterferenceW);
-        }
-      }
-      else if (compare_timeslot < d_0 + dataErItem.transmittedReceptionTime)
-      {
-        dataFound = true;
-        retVector.insert ( retVector.begin (), (double)dataErItem.previousEdgeInterferenceW);
-      }
-    }
-
-    //ErInfoItem ackErItem = BinarySearchErInfoItem ((sender.GetNodeId () * Simulator::NodesCountUpperBound + receiver.GetNodeId ())*10 + 0); // ack er item;
-    ErInfoItem ackErItem = m_othersControlInformationCopy [sender.GetNodeId () * 10];
-    if ( ackErItem.sender != 0)
-    {
-      uint32_t d_0 = 0;
-      for (std::vector<LinkD0>::iterator __it = ackErItem.d0Vec.begin (); __it != ackErItem.d0Vec.end (); ++ __it)
-      {
-        if ( __it->sender == targetSender.GetNodeId () && __it->receiver == targetReceiver.GetNodeId ())
-        {
-          if (category == ER_INFO_ITEM_CATEGORY_ONE )
-          {
-            d_0 = (uint32_t)__it->d0CategoryOne;
-          }
-          else if (category == ER_INFO_ITEM_CATEGORY_TWO)
-          {
-            d_0 = (uint32_t)__it->d0CategoryTwo;
-          }
-          break;
-        }
-      }
-      uint32_t compare_timeslot = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, ackErItem.transmittedReceptionTime);
-      if ( compare_timeslot >= d_0 + ackErItem.transmittedReceptionTime )
-      {
-        if (ackErItem.actualReceptionTime + d_0 + ITEM_LIFE_TIMESLOT > m_currentTimeslot)
-        {
-          ackFound = true;
-          retVector.push_back (ackErItem.edgeInterferenceW);
-        }
-      }
-      else if (compare_timeslot < d_0 + ackErItem.transmittedReceptionTime)
-      {
-        ackFound = true;
-        retVector.push_back (ackErItem.previousEdgeInterferenceW); 
-      }
-    }
-    if (retVector.size () == 2)
-    {
+      dataFound = true;
+      retVector.insert ( retVector.begin (), (double)dataErItem.edgeInterferenceW);
       return retVector;
     }
+
 
     if (dataFound == false)
     {
       retVector.insert (retVector.begin (), IMPOSSIBLE_ER); //IMPOSSIBLE_ER makes ER size to be zero
     }
 
-    if (ackFound == false)
-    {
-      retVector.push_back (IMPOSSIBLE_ER);
-    }
-    NS_ASSERT (retVector.size () == 2);
+    NS_ASSERT (retVector.size () == 1);
     return retVector;
   }
 
@@ -2656,69 +2465,26 @@ rxPacket:
         if (difference >= m_estimatorWindow)
         {
           ErInfoItem payloadItem = GetErInfoItem (sender.GetNodeId (), receiver.GetNodeId (), true, true);
-          double expectedDeliverTime  = FindDeliverTime (sender.GetNodeId (), receiver.GetNodeId (), &m_linkD0Self, ER_INFO_ITEM_CATEGORY_ONE);
-          if (payloadItem.newEstimationMade == false ) //make the estimation of a new PDR, then, calculate the new ER
+          receivedCount = it->ReceivedDataPacketNumbers.size ();
+          if ( it->DataPdr >= 0)
           {
-            payloadItem.newEstimationMade = true;
-            receivedCount = it->ReceivedDataPacketNumbers.size ();
-            if ( it->DataPdr >= 0)
-            {
-              it->PreviousDataPdr = it->DataPdr;
-              it->DataPdr = (1 - m_ewmaCoefficient) * receivedCount / (double)difference + m_ewmaCoefficient * it->DataPdr;
-            }
-            else
-            {
-              it->PreviousDataPdr = it->DataPdr;
-              it->DataPdr = receivedCount / (double)difference;
-            }
-            estimatedPdr = receivedCount / (double) difference;
-#ifndef EWMA_PDR_RISING
-            if (estimatedPdr > m_desiredDataPdr)
-            {
-              payloadItem.risingAchieved =  true;
-            }
-#endif
-#ifdef EWMA_PDR_RISING
-            if (it->DataPdr > m_desiredDataPdr)
-            {
-              payloadItem.risingAchieved =  true;
-            }
-#endif
-            std::cout<<m_self<<" from: "<<sender<<" real segment pdr: "<< receivedCount / (double)difference << std::endl;
-            // -----------------UPDATE SENDING PROBABILITY --------------------------
-#ifdef TX_DURATION_PROBABILITY
-            double slotDifference = m_currentTimeslot - m_sendProbLastComputedTimeSlot;
-            m_selfSendingProbability = m_ewmaCoefficient * m_selfSendingProbability + (1 - m_ewmaCoefficient) * ((double)(++ m_sendingCount) / slotDifference); // we use (++ m_sendingCount) is because we need to consider the ack that will be sent out immediately.
-            m_sendingCount = 0;
-            m_sendProbLastComputedTimeSlot = m_currentTimeslot;
-#endif
-          }
-          else if ( m_currentTimeslot >= payloadItem.transmittedReceptionTime + (uint32_t)expectedDeliverTime && payloadItem.newEstimationMade == true )
-          {
-            receivedCount = it->ReceivedDataPacketNumbers.size ();
-            estimatedPdr = receivedCount / (double)difference;
-            if ( it->PreviousDataPdr >= 0)
-            {
-              it->DataPdr = (1 - m_ewmaCoefficient) * receivedCount / (double)difference + m_ewmaCoefficient * it->PreviousDataPdr;
-            }
-            else
-            {
-              it->DataPdr = receivedCount / (double)difference;
-            }
-            if (estimatedPdr > m_desiredDataPdr)
-            {
-              payloadItem.risingAchieved = true;
-            }
-            payloadItem.newEstimationMade = false;
-            UpdateControlInformation (payloadItem);
-            it->LastDataSequenceNo = seqNo;
-            it->ReceivedDataPacketNumbers.clear (); // after calculation, remove the already estimated seq numbers
-            return; // after d_0 later, just re-calculate the y(t), do not have to do anything else
+            it->PreviousDataPdr = it->DataPdr;
+            it->DataPdr = (1 - m_ewmaCoefficient) * receivedCount / (double)difference + m_ewmaCoefficient * it->DataPdr;
           }
           else
           {
-            return; // new estimation made, not reached d_0 yet
+            it->PreviousDataPdr = it->DataPdr;
+            it->DataPdr = receivedCount / (double)difference;
           }
+          estimatedPdr = receivedCount / (double) difference;
+          std::cout<<m_self<<" from: "<<sender<<" real segment pdr: "<< receivedCount / (double)difference << std::endl;
+          // -----------------UPDATE SENDING PROBABILITY --------------------------
+#ifdef TX_DURATION_PROBABILITY
+          double slotDifference = m_currentTimeslot - m_sendProbLastComputedTimeSlot;
+          m_selfSendingProbability = m_ewmaCoefficient * m_selfSendingProbability + (1 - m_ewmaCoefficient) * ((double)(++ m_sendingCount) / slotDifference); // we use (++ m_sendingCount) is because we need to consider the ack that will be sent out immediately.
+          m_sendingCount = 0;
+          m_sendProbLastComputedTimeSlot = m_currentTimeslot;
+#endif
           if (it->DataPdr > 1)
           {
             it->DataPdr = 1;
@@ -2798,7 +2564,7 @@ rxPacket:
           Mac48Address edgeNode;
           if (deltaInterferenceDb != 0)
           {
-            it->LastDataErEdgeInterferenceW = tempPhy-> GetErEdgeInterference (deltaInterferenceWatt, it->LastDataErEdgeInterferenceW, &edgeNode, conditionTwoMeet, payloadItem.risingAchieved); //Since the data link pdr has changed, we also update the data ER edge interference. /Watt
+            it->LastDataErEdgeInterferenceW = tempPhy-> GetErEdgeInterference (deltaInterferenceWatt, it->LastDataErEdgeInterferenceW, &edgeNode, conditionTwoMeet); //Since the data link pdr has changed, we also update the data ER edge interference. /Watt
           }
           if (it->previousDataErW < it->LastDataErEdgeInterferenceW) // when ER size decreases, always reset this;
           {
@@ -2810,14 +2576,10 @@ rxPacket:
            */
           payloadItem.sender = sender.GetNodeId ();
           payloadItem.receiver = receiver.GetNodeId ();
-          payloadItem.isDataEr = true;
-          payloadItem.previousEdgeInterferenceW = payloadItem.edgeInterferenceW;
+          //payloadItem.isDataEr = true;
           payloadItem.edgeInterferenceW = it->LastDataErEdgeInterferenceW;
           payloadItem.updateSeqNo = (payloadItem.updateSeqNo + 1 ) % MAX_VERSION_NUMBER;
           payloadItem.itemPriority = DEFAULT_INFO_ITEM_PRIORITY + EXTRA_HIGHEST_PRIORITY_SENDING_TRIALS;
-          payloadItem.transmittedReceptionTime = m_currentTimeslot;
-          payloadItem.actualReceptionTime = m_currentTimeslot;
-          payloadItem.transmittedGenerationTime = m_currentTimeslot % MAX_TIME_SLOT_IN_PAYLOAD;
           UpdateControlInformation (payloadItem);
 
           m_controlMessagePriority = m_defaultPriority;
@@ -2836,186 +2598,6 @@ rxPacket:
     }
   }
 
-  void MacLow::UpdateReceivedAckPacketNumbers (Mac48Address sender, Mac48Address receiver, uint16_t seqNo)
-  {
-    seqNo = seqNo % m_maxSeqNo;
-    double estimatedPdr = m_desiredDataPdr;
-    double deltaInterferenceDb = 0;
-    std::vector<LinkEstimatorItem>::iterator it = m_linkEstimatorTable.begin ();
-    for ( ; it != m_linkEstimatorTable.end () ; ++ it)
-    {
-      if ( it->Receiver == receiver && it->Sender == sender)
-      {
-        if (seqNo == it->LastAckSequenceNo )
-        {
-          break;
-        }
-        if (find (it->ReceivedAckPacketNumbers.begin (), it->ReceivedAckPacketNumbers.end (), seqNo) == it->ReceivedAckPacketNumbers.end ())
-        {
-          it->ReceivedAckPacketNumbers.insert (it->ReceivedAckPacketNumbers.begin (), seqNo);
-        }
-        // estimate link reliability (data pdr)
-        double receivedCount = 0.0;
-        int difference = 0;   
-        if ( it->LastAckSequenceNo > seqNo ) // overflow
-        {
-          difference = seqNo + m_maxSeqNo - it->LastAckSequenceNo;
-        }
-        else  // not overflow
-        {
-          difference = seqNo - it->LastAckSequenceNo;
-        }
-        if (difference >= m_estimatorWindow)
-        {
-          ErInfoItem payloadItem = GetErInfoItem (sender.GetNodeId (), receiver.GetNodeId (), false, true);
-          double expectedDeliverTime  = FindDeliverTime (sender.GetNodeId (), receiver.GetNodeId (), &m_linkD0Self, ER_INFO_ITEM_CATEGORY_ONE);
-          if (payloadItem.newEstimationMade == false ) //make the estimation of a new PDR, then, calculate the new ER
-          {
-            payloadItem.newEstimationMade = true;
-            receivedCount = it->ReceivedAckPacketNumbers.size ();
-            if (it->AckPdr >= 0)
-            {
-              it->PreviousAckPdr = it->AckPdr;
-              it->AckPdr = (1 - m_ewmaCoefficient) * receivedCount / (double)difference + m_ewmaCoefficient * it->AckPdr;
-            }
-            else if (it->AckPdr < 0)
-            {
-              it->PreviousAckPdr = it->AckPdr;
-              it->AckPdr = receivedCount / (double)difference;
-            }
-            //estimatedPdr = receivedCount / (double) difference;
-            estimatedPdr = receivedCount / (double) difference;
-#ifndef EWMA_PDR_RISING
-            if (estimatedPdr > m_ackPdr)
-            {
-              payloadItem.risingAchieved =  true;
-            }
-#endif
-#ifdef EWMA_PDR_RISING
-            if (it->AckPdr > m_ackPdr)
-            {
-              payloadItem.risingAchieved =  true;
-            }
-#endif
-          }
-          else if ( m_currentTimeslot >= payloadItem.transmittedReceptionTime + (uint32_t)expectedDeliverTime  && payloadItem.newEstimationMade == true)
-          {
-            receivedCount = it->ReceivedAckPacketNumbers.size ();
-            estimatedPdr = receivedCount / (double) difference;
-            if ( it->PreviousAckPdr >= 0)
-            {
-              it->AckPdr = (1 - m_ewmaCoefficient) * receivedCount / (double)difference + m_ewmaCoefficient * it->PreviousAckPdr;
-            }
-            else
-            {
-              it->AckPdr = receivedCount / (double)difference;
-            }
-
-            if (estimatedPdr > m_desiredDataPdr)
-            {
-              payloadItem.risingAchieved =  true;
-            }
-            payloadItem.newEstimationMade = false;
-            UpdateControlInformation (payloadItem);
-            it->LastAckSequenceNo = seqNo;
-            it->ReceivedAckPacketNumbers.clear ();
-            return;
-          }
-          else
-          {
-            return;
-          }
-          if (it->AckPdr > 1)
-          {
-            it->AckPdr = 1;
-          }
-          /* estimate ack ER region */
-          Ptr<WifiImacPhy> tempPhy = m_phy->GetObject<WifiImacPhy> ();
-          //Ptr<SignalMap> signalMapItem = tempPhy->GetSignalMapItem (receiver);
-          it->AckInterferenceW = tempPhy->ComputeInterferenceWhenReceivingAck ();
-          //double supposedReceivePowerDbm = tempPhy->GetPowerDbmByLevel (0) + tempPhy->GetTxGain () - signalMapItem->outBoundAttenuation;
-          tempPhy->ComputeSampledInterferenceW ();
-          // for ack, the parameter is the ack receiver and ack sender
-          LinkMetaData linkMetaData = GetLinkMetaDataByLink (m_self, receiver); 
-          bool conditionTwoMeet = false;
-          //double deltaInterferenceDb = m_pControllerWithDesiredPdr.GetDeltaInterference(m_ackPdr, it->AckPdr);
-          if (linkMetaData.interferencePreviousDbm != 0 && linkMetaData.interferenceNowDbm != 0)
-          {
-            //deltaInterferenceDb = m_minVarController.GetDeltaInterference (m_ackPdr, it->AckPdr,estimatedPdr, linkMetaData.muBWatt);
-            if ( tempPhy->DbmToW ( linkMetaData.interferenceNowDbm) + linkMetaData.muBWatt > 0)
-            {
-              //muBinDbm = tempPhy->WToDbm (tempPhy->DbmToW ( linkMetaData.interferenceNowDbm) + linkMetaData.muBWatt ) - linkMetaData.interferenceNowDbm;
-            }
-            deltaInterferenceDb = m_minVarController.GetDeltaInterference (m_ackPdr, it->AckPdr, estimatedPdr, conditionTwoMeet );
-          }
-          if ( linkMetaData.interferencePreviousDbm == 0 || linkMetaData.interferenceNowDbm == 0) // the first time we compute \Delta_I
-          {
-            linkMetaData.interferencePreviousDbm = linkMetaData.interferenceNowDbm;
-            linkMetaData.interferenceNowDbm = tempPhy->WToDbm (it->AckInterferenceW + tempPhy->GetCurrentNoiseW ());
-            //linkMetaData.muBWatt = (1 - m_ewmaCoefficient) * (-deltaInterferenceDb);
-            linkMetaData.lastComputedDeltaInterferenceDb = deltaInterferenceDb;
-          }
-          else
-          {
-            linkMetaData.interferencePreviousDbm = linkMetaData.interferenceNowDbm;
-            linkMetaData.interferenceNowDbm = tempPhy->WToDbm (it->AckInterferenceW + tempPhy->GetCurrentNoiseW ()); 
-
-            //double deltaIM = tempPhy->DbmToW (linkMetaData.interferenceNowDbm) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm);
-            //double previousDeltaIR = tempPhy->DbmToW (linkMetaData.interferencePreviousDbm + linkMetaData.lastComputedDeltaInterferenceDb) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm) - linkMetaData.muBWatt;
-            //double actualDeltaU = deltaIM - previousDeltaIR;
-
-            //linkMetaData.muBWatt = (1 - m_ewmaCoefficient) * actualDeltaU  + m_ewmaCoefficient * linkMetaData.muBWatt;
-            linkMetaData.muBWatt = 0; 
-            linkMetaData.lastComputedDeltaInterferenceDb = deltaInterferenceDb;
-          }
-
-          double expectedInterferenceDbm = tempPhy->WToDbm (it->AckInterferenceW + tempPhy->GetCurrentNoiseW ()) + deltaInterferenceDb;
-          double expectedInterferenceWatt = tempPhy->DbmToW (expectedInterferenceDbm);
-          double deltaInterferenceWatt = expectedInterferenceWatt - it->AckInterferenceW - tempPhy->GetCurrentNoiseW ()- linkMetaData.muBWatt;
-          if (deltaInterferenceDb != 0 && deltaInterferenceWatt == 0)
-          {
-            std::cout<<" abnormal: delta_interference_db: "<< deltaInterferenceDb <<" expected_interference_watt: "<<expectedInterferenceWatt << " currentInterference: "<<it->AckInterferenceW + tempPhy->GetCurrentNoiseW () <<" delta_interference_watt: "<< (expectedInterferenceWatt - it->AckInterferenceW - tempPhy->GetCurrentNoiseW ()) <<std::endl;
-          }
-          //std::cout<<" previous ack edge interference: "<<it->LastAckErEdgeInterferenceW;
-          it->previousAckErW = it->LastAckErEdgeInterferenceW;
-          Mac48Address edgeNode;
-          if (deltaInterferenceDb != 0)
-          {
-            it->LastAckErEdgeInterferenceW = tempPhy-> GetErEdgeInterference (deltaInterferenceWatt, it->LastAckErEdgeInterferenceW, &edgeNode, conditionTwoMeet, payloadItem.risingAchieved); //Since the data link pdr has changed, we also update the data ER edge interference
-          }
-
-          // need a method to get the already existed item
-          payloadItem.sender = sender.GetNodeId ();
-          payloadItem.receiver = receiver.GetNodeId ();
-          payloadItem.isDataEr = false;
-          payloadItem.previousEdgeInterferenceW = payloadItem.edgeInterferenceW;
-          payloadItem.edgeInterferenceW = it->LastAckErEdgeInterferenceW;
-          payloadItem.updateSeqNo = (payloadItem.updateSeqNo + 1 ) % MAX_VERSION_NUMBER;
-#ifdef ENABLE_ACK_ER
-          payloadItem.itemPriority = DEFAULT_INFO_ITEM_PRIORITY + EXTRA_HIGHEST_PRIORITY_SENDING_TRIALS;
-#else 
-          payloadItem.itemPriority = 0;
-#endif
-          payloadItem.transmittedReceptionTime = m_currentTimeslot;
-          payloadItem.actualReceptionTime = m_currentTimeslot;
-          payloadItem.transmittedGenerationTime = m_currentTimeslot % MAX_TIME_SLOT_IN_PAYLOAD;
-          UpdateControlInformation (payloadItem);
-
-          m_controlMessagePriority = m_defaultPriority;
-          if ( m_erInfoUpdatedTimeSlot == 0)
-          {
-            m_erInfoUpdatedTimeSlot = m_currentTimeslot;
-          }
-
-          linkMetaData.addr1 = m_self; //ack receiver
-          linkMetaData.addr2 = receiver;  //ack sender
-          linkMetaData.edgeInterferenceW = it->LastAckErEdgeInterferenceW;
-          AddOrUpdateErRegion (linkMetaData); // update reception ER
-          break;
-        }
-      }
-    }
-  }
   /* Add or update ER edge interference for the current node. sort the vector according to the edge interference power
    * in a decreasing fashion. Note that if we want to get the maximum ER region for a specific node, we just have to fetch the very 
    * first item in this vector @m_linkMetaData; 
@@ -3101,7 +2683,6 @@ rxPacket:
     for (uint8_t i = 0; i < size; ++ i)
     {
       uint16_t sender = 0;
-      uint16_t receiver = 0;
       ErInfoItem item;
       // sender
       sender = buffer[i * itemSize + 1] & 0x01;
@@ -3114,51 +2695,25 @@ rxPacket:
       }
 
       // receiver
-      receiver = buffer[i * itemSize + 2] & 0x03;
-      receiver <<= 7;
-      receiver |= ((buffer[i * itemSize + 1] >> 1) & 0x7f); 
-      item.receiver = receiver;
-
-      // is_data_link
-      item.isDataEr = ((buffer[i * itemSize + 2] >> 2) & 0x01) == 1 ? true : false;
+      TdmaLink linkInfo = Simulator::m_nodeLinkDetails[item.sender].selfInitiatedLink;
+      item.receiver = Mac48Address (linkInfo.receiverAddr.c_str ()).GetNodeId ();
 
       // version number
       item.updateSeqNo = 0;
-      item.updateSeqNo = (buffer[i * itemSize + 3] & 0x03);
-      item.updateSeqNo <<= 5;
-      item.updateSeqNo |= ((buffer[i * itemSize + 2] >> 3) & 0x1f);
-
-      // edge_interference
-      uint16_t edgeInterferenceDbm = 0;
-      edgeInterferenceDbm = (buffer[i * itemSize + 4] & 0x3f);
-      edgeInterferenceDbm <<= 6;
-      edgeInterferenceDbm |= ((buffer[i * itemSize + 3] >>2) & 0x3f);
-      item.edgeInterferenceW = m_phy->GetObject<WifiImacPhy> ()->DbmToW ((double)edgeInterferenceDbm/AMPLIFY_TIMES * -1);
+      item.updateSeqNo = (buffer[i * itemSize + 1]>> 1);
 
       // item priority
       uint16_t priority = 0;
-      priority = (buffer [i * itemSize + 5] & 0x01);
-      priority <<= 2;
-      priority |= (buffer [i * itemSize + 4] >> 6) & 0x03;
+      priority = (buffer [i * itemSize + 2] & 0x07);
       item.itemPriority = priority;
 
-      // reception time
-      uint16_t reception = 0;
-      reception = buffer[i * itemSize +6] & 0x1f;
-      reception <<= 7;
-      reception |= (buffer[i * itemSize +5] >> 1 )& 0x7f;
-      item.transmittedReceptionTime = reception;
-      item.previousEdgeInterferenceW = IMPOSSIBLE_ER;
 
-      uint32_t generationTime = 0;
-      generationTime = buffer [i * itemSize + 8] & 0x01; // higher 1 bit
-      generationTime <<= 8;
-      generationTime |= buffer [i * itemSize + 7]; // middle 8 bits
-      generationTime <<= 3;
-      generationTime |= (buffer [i * itemSize + 6]>> 5) & 0x07; // 3 lower bits
-      item.transmittedGenerationTime = generationTime;
-
-      //std::cout<<" sender: "<<item.sender <<" receiver: "<< item.receiver <<" isDataEr: "<<item.isDataEr <<" erEdge: "<<edgeInterferenceDbm <<" erEdge(W): "<<item.edgeInterferenceW<<" priority: "<< item.itemPriority <<" transmittedReceptionTime: "<< item.transmittedReceptionTime<<std::endl;
+      // edge_interference
+      uint16_t edgeInterferenceDbm = 0;
+      edgeInterferenceDbm = ((buffer[i * itemSize + 2] >>3) & 0x1f);
+      edgeInterferenceDbm <<= 5;
+      edgeInterferenceDbm |= (buffer[i * itemSize + 3] & 0x7f);
+      item.edgeInterferenceW = m_phy->GetObject<WifiImacPhy> ()->DbmToW ((double)edgeInterferenceDbm/AMPLIFY_TIMES * -1);
 
       payload.vec.push_back (item);
     }
@@ -3172,38 +2727,10 @@ rxPacket:
     ctrlChannelInterferenceDbm <<= 4;
     ctrlChannelInterferenceDbm |= ((buffer [size * itemSize + 1] >> 4 ) & 0x0f);
     payload.controlChannelInterferenceW = m_phy->GetObject<WifiImacPhy> ()->DbmToW ( (double) (ctrlChannelInterferenceDbm/AMPLIFY_TIMES * (-1)));
-    payload.linkD0Size = (uint32_t)buffer [size * itemSize + 3];
-    payload.d0CategoryOne = IMPOSSIBLE_D0_VALUE;
-    payload.d0CategoryTwo = IMPOSSIBLE_D0_VALUE;
-    for (uint32_t i = 0; i < payload.linkD0Size;  ++ i)
-    {
-      uint16_t nodeId = 0;
-      uint32_t d0CategoryOne = 0, d0CategoryTwo = 0;
-      nodeId = buffer [size * itemSize + 4 * ( i + 1) + 1] & 0x01;
-      nodeId <<= 8;
-      nodeId |= (buffer [size * itemSize + 4 * ( i + 1)] & 0xff);
-      if (nodeId == m_self.GetNodeId ())
-      {
-        d0CategoryOne = (buffer [size * itemSize + 4 * ( i + 1) + 2] & 0x0f); //higher 4 bits
-        d0CategoryOne <<= 7;
-        d0CategoryOne |= ((buffer [size * itemSize + 4 * ( i + 1) + 1] >> 1) & 0x7f ); // lower 7 bits
-        payload.d0CategoryOne = d0CategoryOne;
-        d0CategoryTwo = buffer [size * itemSize + 4 * ( i + 1) + 3]; // higher 8 bits
-        d0CategoryTwo <<= 4;
-        d0CategoryTwo |= ((buffer [size * itemSize + 4 * ( i + 1) + 2] >> 4) & 0x0f); // lower 4 bits
-        payload.d0CategoryTwo = d0CategoryTwo;
-        break;
-      }
-      else
-      {
-        continue;
-      }
-    }
-    uint8_t txProbability = buffer [size * itemSize + 4 * (payload.linkD0Size + 1)];
-    payload.txProbability = (double)txProbability / 256;
-
-    //std::cout<<"receive tx probability: "<< (uint16_t)txProbability<<" from: "<< hdr.GetAddr2 ()<< std::endl;
-    //std::cout<<" maxer: "<< payload.maxErEdgeInterferenceW <<" inter: "<< payload.controlChannelInterferenceW<<" d0_cat_1: "<<payload.d0ForCategoryOne<<" d0_cat_2: "<< payload.d0ForCategoryTwo <<" d0_cat_3: "<< payload.d0ForCategoryThree << std::endl;
+    payload.nextRxTimeslot = buffer[size * itemSize + 4];
+    payload.nextRxTimeslot <<= 8;
+    payload.nextRxTimeslot |= buffer[size * itemSize + 3];
+    payload.nextRxTimeslot += m_currentTimeslot;
     return payload;
   }
 
@@ -3235,21 +2762,15 @@ rxPacket:
   void MacLow::UpdateReceivedErInfoItem (ErInfoItem erItem,  Mac48Address controlPacketSender)
   {
     uint16_t originalSender = 0;
-    if ( erItem.isDataEr == true )
-    {
-      originalSender = erItem.receiver;
-    }
-    else if (erItem.isDataEr == false )
-    {
-      originalSender = erItem.sender;
-    }
+    originalSender = erItem.receiver;
     if ( originalSender == m_self.GetNodeId ())
     {
       return; // if the current node is the original sender of the er information item, we don't have to do anything.
     }
     for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
     {
-      if ( it->sender == erItem.sender && it->receiver == erItem.receiver && it->isDataEr == erItem.isDataEr)
+      //Locate the item in m_othersControlInformation
+      if ( it->sender == erItem.sender && it->receiver == erItem.receiver)
       {      
         uint32_t difference = 0;
         if ( it->updateSeqNo >= erItem.updateSeqNo)
@@ -3261,237 +2782,15 @@ rxPacket:
           difference = erItem.updateSeqNo - it->updateSeqNo;
         }
 
-        if (it->updateSeqNo == erItem.updateSeqNo) 
+        //NEW ER estimation, judge according to verison number
+        if (it->updateSeqNo < erItem.updateSeqNo || difference > IMPOSSIBLE_VER_NO_DIFFERENCE)
         {
-          std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks;
-          for (std::vector<TdmaLink>::iterator __it = relatedLinks.begin (); __it != relatedLinks.end (); ++ __it)
-          {
-            // if @m_self <-----> @controlPacketSender
-            if ( ( __it->senderAddr == m_self.ToString () && __it->receiverAddr == controlPacketSender.ToString ()) ||
-                (__it->receiverAddr == m_self.ToString () && __it->senderAddr == controlPacketSender.ToString ()) )
-            {
-              uint16_t sender = Mac48Address (__it->senderAddr.c_str ()).GetNodeId ();
-              uint16_t receiver = Mac48Address (__it->receiverAddr.c_str ()).GetNodeId ();
-              // Sample deliver time for the second category, we only consider which category the er item belongs to regarding the link between m_self <--> controlPacketSender
-              uint32_t category = 0;// for this link, check category of erItem
-              if ( m_self.GetNodeId () == erItem.sender || m_self.GetNodeId () == erItem.receiver )
-              {
-                category = ER_INFO_ITEM_CATEGORY_ONE;
-              }
-              else if ( !(m_self.GetNodeId () == erItem.sender || m_self.GetNodeId () == erItem.receiver)) 
-              {
-                category = ER_INFO_ITEM_CATEGORY_TWO;
-              }
-              // if yes, do estimation according to category and link
-              uint32_t deliverTime = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, erItem.transmittedReceptionTime);
-
-              std::vector<LinkD0>::iterator _iterator = FindLinkD0Item (sender, receiver, m_linkD0Others);
-              if ( _iterator != m_linkD0Others.end ())
-              {
-                std::vector<LinkD0>::iterator d0VecIterator = FindLinkD0Item (sender, receiver, it->d0Vec); 
-                if (category == ER_INFO_ITEM_CATEGORY_TWO)
-                {
-                  if ( d0VecIterator != it->d0Vec.end () && d0VecIterator->secondCategorySampled == false)
-                  {
-                    d0VecIterator->secondCategorySampled = true;
-                    _iterator->d0CategoryTwo = InsertD0Sample (sender, receiver, (double)deliverTime, category);
-                    //m_ewmaCoefficient * _iterator->d0CategoryTwo + (1 - m_ewmaCoefficient) * deliverTime;
-                    std::cout<<m_self<<" sampling, cat_2, quantile deliver time: "<< _iterator->d0CategoryTwo<<" for: "<< controlPacketSender<<" sample: "<< deliverTime << std::endl;
-                  }
-                } 
-                // update CI (critical instant) if need be.
-                double expectedDeliverTime = FindDeliverTime (_iterator->sender, _iterator->receiver , &m_linkD0Self, category);
-                uint32_t delay = (category == ER_INFO_ITEM_CATEGORY_TWO ? (uint32_t)_iterator->d0CategoryTwo : (uint32_t)_iterator->d0CategoryOne);
-                if ( it->transmittedReceptionTime + (uint32_t)expectedDeliverTime > erItem.transmittedReceptionTime + delay )
-                {
-                  if ( d0VecIterator != it->d0Vec.end ())
-                  {
-                    if ( category == ER_INFO_ITEM_CATEGORY_TWO)
-                    {
-                      d0VecIterator->d0CategoryTwo = d0VecIterator->d0CategoryTwo - (it->transmittedReceptionTime + (uint32_t)expectedDeliverTime - (erItem.transmittedReceptionTime + delay) );
-                    }
-                    else if (category == ER_INFO_ITEM_CATEGORY_ONE)
-                    {
-                      d0VecIterator->d0CategoryOne = d0VecIterator->d0CategoryOne - (it->transmittedReceptionTime + (uint32_t)expectedDeliverTime - (erItem.transmittedReceptionTime + delay) );
-                    }
-                  }
-                }
-              }
-              if (  _iterator == m_linkD0Others.end ())
-              {
-                LinkD0 linkD0;
-                linkD0.sender = Mac48Address (__it->senderAddr.c_str ()).GetNodeId ();
-                linkD0.receiver = Mac48Address (__it->receiverAddr.c_str ()).GetNodeId ();
-                if (category == ER_INFO_ITEM_CATEGORY_ONE)
-                {
-                  linkD0.d0CategoryOne = deliverTime;
-                  linkD0.d0CategoryTwo = 0;
-                }
-                else if ( category == ER_INFO_ITEM_CATEGORY_TWO)
-                {
-                  linkD0.d0CategoryOne = 0;
-                  linkD0.d0CategoryTwo = deliverTime;
-                }
-                linkD0.firstCategorySampled = false;// will not use
-                linkD0.secondCategorySampled = false;// will not use
-                m_linkD0Others.push_back (linkD0);
-              }
-              break;
-            }
-          }
-        }
-        else if (it->updateSeqNo < erItem.updateSeqNo || difference > IMPOSSIBLE_VER_NO_DIFFERENCE)
-        {
-          std::cout<<Simulator::Now () <<" "<<m_self<<" previous SeqNo: "<< (uint16_t)it->updateSeqNo <<" currentSeqNo: "<< (uint16_t)erItem.updateSeqNo << std::endl;
-          uint16_t sender = 0;
-          uint16_t receiver = 0;
-
-          std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks;
-          uint32_t category = 0;
-          for (std::vector<TdmaLink>::iterator __it = relatedLinks.begin (); __it != relatedLinks.end (); ++ __it)
-          {
-            sender = Mac48Address (__it->senderAddr.c_str ()).GetNodeId ();
-            receiver = Mac48Address (__it->receiverAddr.c_str ()).GetNodeId ();
-
-            if ( m_self.GetNodeId () == erItem.sender || m_self.GetNodeId () == erItem.receiver )
-            {
-              category = ER_INFO_ITEM_CATEGORY_ONE;
-            }
-            else if ( !(m_self.GetNodeId () == erItem.sender || m_self.GetNodeId () == erItem.receiver)) 
-            {
-              category = ER_INFO_ITEM_CATEGORY_TWO;
-            }
-            // New item comes in, and there is a link between control sender and receiver (m_self), take samples
-            // -------------------------------------------------------------------------------------------------
-            //                TAKE SAMPLE WHEN RECEIVING NEW ITEM
-            // ------------------------------------------------------------------------------------------------
-            if (( sender == m_self.GetNodeId () && receiver == controlPacketSender.GetNodeId () ) ||
-                (sender == controlPacketSender.GetNodeId () && receiver == m_self.GetNodeId ()))
-            {
-              uint32_t deliverTime = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, erItem.transmittedReceptionTime);
-              std::vector<LinkD0>::iterator _iterator = FindLinkD0Item (sender, receiver, m_linkD0Others);
-              if ( _iterator != m_linkD0Others.end ()) //.found
-              {
-                std::vector<LinkD0>::iterator d0VecIterator = FindLinkD0Item (sender, receiver, it->d0Vec);
-                if ( d0VecIterator != it->d0Vec.end ())
-                {
-                  if ((category == ER_INFO_ITEM_CATEGORY_ONE || (m_self.GetNodeId () == erItem.sender || m_self.GetNodeId () == erItem.receiver))
-                      && d0VecIterator->firstCategorySampled == false )
-                  {
-                    d0VecIterator->firstCategorySampled = true;
-                    if (category == ER_INFO_ITEM_CATEGORY_ONE )
-                    {
-                      _iterator->d0CategoryOne = InsertD0Sample (sender, receiver, (double)deliverTime, category);
-                      std::cout<<m_self<< " sampling, cat_1, quantile deliver time: "<< _iterator->d0CategoryOne<<" for: "<< controlPacketSender<<" sample: "<< deliverTime << std::endl;
-                    }
-                    /*
-                       else if (m_self.GetNodeId () == erItem.sender || m_self.GetNodeId () == erItem.receiver)
-                       {
-                       uint32_t deliverTimeFromGeneration = ComputeDelayBetweenTwoTimeslots (m_currentTimeslot, erItem.transmittedGenerationTime);
-                       _iterator->d0CategoryOne = InsertD0Sample (sender, receiver, (double)deliverTimeFromGeneration, category);
-                       std::cout<<m_self<< " sampling, cat_1, quantile deliver time: "<< _iterator->d0CategoryOne<<" for: "<< controlPacketSender<<" sample: "<< deliverTimeFromGeneration << std::endl;
-                       }
-                       */
-                  }
-                  if (category == ER_INFO_ITEM_CATEGORY_TWO && d0VecIterator->secondCategorySampled == false)
-                  {
-                    d0VecIterator->secondCategorySampled = true;
-                    _iterator->d0CategoryTwo = InsertD0Sample (sender, receiver, (double)deliverTime, category);
-                    std::cout<<m_self<<" sampling, cat_2, quantile deliver time: "<< _iterator->d0CategoryTwo<<" for: "<< controlPacketSender<<" sample: "<< deliverTime << std::endl;
-                  }
-                }
-              }
-              if ( _iterator == m_linkD0Others.end () )
-              {
-                LinkD0 linkD0;
-                linkD0.sender = sender;
-                linkD0.receiver = receiver;
-                if ( category == ER_INFO_ITEM_CATEGORY_ONE)
-                {
-                  linkD0.d0CategoryOne = deliverTime;
-                  linkD0.d0CategoryTwo = 0;
-                }
-                else if ( category == ER_INFO_ITEM_CATEGORY_TWO)
-                {
-                  linkD0.d0CategoryTwo = deliverTime;
-                  linkD0.d0CategoryOne = 0;
-                }
-                linkD0.firstCategorySampled = false;
-                linkD0.secondCategorySampled = false;
-                m_linkD0Others.push_back (linkD0);
-              }
-              break;
-            }
-          }
-
-          // ----------------------------------------------------------------------------------------
-          //           RE_SET D0 FOR BOTH CATEGORY
-          // ----------------------------------------------------------------------------------------
-          if (it->d0Vec.size () > 0)
-          {
-            for (std::vector<TdmaLink>::iterator __it = relatedLinks.begin (); __it != relatedLinks.end (); ++ __it)
-            {
-              uint16_t sender = Mac48Address (__it->senderAddr.c_str ()).GetNodeId ();
-              uint16_t receiver = Mac48Address (__it->receiverAddr.c_str ()).GetNodeId ();
-              double expectedDeliverTime = FindDeliverTime (sender, receiver , &m_linkD0Self, category);
-              std::vector<LinkD0>::iterator d0VecIterator = FindLinkD0Item (sender, receiver, it->d0Vec);
-              if (d0VecIterator != it->d0Vec.end ())
-              {
-                if (category == ER_INFO_ITEM_CATEGORY_TWO)
-                {
-                  d0VecIterator->d0CategoryTwo = expectedDeliverTime;
-                  d0VecIterator->d0CategoryOne = 0;
-                }
-                else if (category == ER_INFO_ITEM_CATEGORY_ONE)
-                {
-                  d0VecIterator->d0CategoryOne = expectedDeliverTime;
-                  d0VecIterator->d0CategoryTwo = 0;
-                }
-                d0VecIterator->firstCategorySampled = false;
-                d0VecIterator->secondCategorySampled = false;
-              }
-            }
-          }
-          else if ( it->d0Vec.size () == 0)
-          {
-            for (std::vector<TdmaLink>::iterator __it = relatedLinks.begin (); __it != relatedLinks.end (); ++ __it)
-            {
-              uint16_t sender = Mac48Address (__it->senderAddr.c_str ()).GetNodeId ();
-              uint16_t receiver = Mac48Address (__it->receiverAddr.c_str ()).GetNodeId ();
-              double expectedDeliverTime = FindDeliverTime (sender, receiver , &m_linkD0Self, category);
-              // for each related link, update their delay after which could use the erItem
-              LinkD0  linkD0;
-              linkD0.sender = sender;
-              linkD0.receiver = receiver;
-              if (category == ER_INFO_ITEM_CATEGORY_TWO)
-              {
-                linkD0.d0CategoryTwo = expectedDeliverTime;
-                linkD0.d0CategoryOne = 0;
-              }
-              else if (category == ER_INFO_ITEM_CATEGORY_ONE)
-              {
-                linkD0.d0CategoryOne = expectedDeliverTime;
-                linkD0.d0CategoryTwo = 0;
-              }
-              linkD0.firstCategorySampled = false;
-              linkD0.secondCategorySampled = false;
-              it->d0Vec.push_back (linkD0);
-              //std::cout<<"putting: "<< it->d0Vec.size () << std::endl;
-            }
-            //std::cout<<"end - begin "<< (it->d0Vec.end () - it->d0Vec.begin ())<<" size: "<<it->d0Vec.size () << std::endl;
-          }
 
           //--------------------------------------------------------------------------------
           //              UPDATE INFO ITEM FIELDS
           //--------------------------------------------------------------------------------
-          erItem.transmittedReceptionTime = m_currentTimeslot % MAX_TIME_SLOT_IN_PAYLOAD;
-          erItem.actualReceptionTime = m_currentTimeslot;
-          it->transmittedReceptionTime = erItem.transmittedReceptionTime;
-          it->actualReceptionTime = erItem.actualReceptionTime;
-          it->previousEdgeInterferenceW = it->edgeInterferenceW; 
           it->edgeInterferenceW = erItem.edgeInterferenceW;
           it->updateSeqNo = erItem.updateSeqNo;
-          it->transmittedGenerationTime = erItem.transmittedGenerationTime;
           if (controlPacketSender.GetNodeId () == erItem.sender || controlPacketSender.GetNodeId () == erItem.receiver) // is sent by the original sender, is not relayed. Re-set priority?
           {
             it->itemPriority= erItem.itemPriority == 0 ? erItem.itemPriority : erItem.itemPriority - 1;
@@ -3508,32 +2807,9 @@ rxPacket:
             }
           }
 
-          // update CI (critical instant) if need be.
-          if ( sender == 0 && receiver != 0)
-          {
-            std::vector<LinkD0>::iterator _iterator = FindLinkD0Item (sender, receiver, m_linkD0Others);
-            double expectedDeliverTime = FindDeliverTime (sender, receiver , &m_linkD0Self, category);
-            std::vector<LinkD0>::iterator d0VecIterator = FindLinkD0Item (sender, receiver, it->d0Vec);
-            uint32_t delay = (category == ER_INFO_ITEM_CATEGORY_TWO ? (uint32_t)_iterator->d0CategoryTwo : (uint32_t)_iterator->d0CategoryOne);
-            if ( it->transmittedReceptionTime + (uint32_t)expectedDeliverTime > erItem.transmittedReceptionTime + delay )
-            {
-              if ( d0VecIterator != it->d0Vec.end ())
-              {
-                if ( category == ER_INFO_ITEM_CATEGORY_TWO)
-                {
-                  d0VecIterator->d0CategoryTwo = d0VecIterator->d0CategoryTwo - (it->transmittedReceptionTime + (uint32_t)expectedDeliverTime - (erItem.transmittedReceptionTime + delay) );
-                }
-                else if (category == ER_INFO_ITEM_CATEGORY_ONE)
-                {
-                  d0VecIterator->d0CategoryOne = d0VecIterator->d0CategoryOne - (it->transmittedReceptionTime + (uint32_t)expectedDeliverTime - (erItem.transmittedReceptionTime + delay) );
-                }
-              }
-            }
-          }
 
           ErInfoItem tempItem;
           CopyErInfoItem (it, &tempItem);
-          it->d0Vec.clear ();
           m_othersControlInformation.erase (it);
           if ( m_othersControlInformation.size () == 0)
           {
@@ -3554,22 +2830,18 @@ rxPacket:
               }
             }
           }
-          //sort (m_othersControlInformation.begin (), m_othersControlInformation.end (), ErInfoItemCompare); // sort according to priority, 
         }
         return;
       }
     }
 
-    erItem.transmittedReceptionTime = m_currentTimeslot % MAX_TIME_SLOT_IN_PAYLOAD;
     erItem.itemPriority =erItem.itemPriority == 0 ? erItem.itemPriority : erItem.itemPriority - 1;
     if ( m_othersControlInformation.size () == 0)
     {
-      erItem.d0Vec.clear ();
       m_othersControlInformation.push_back (erItem);
     }
     else if ( (m_othersControlInformation.end () - 1)->itemPriority > erItem.itemPriority )
     {
-      erItem.d0Vec.clear ();
       m_othersControlInformation.push_back (erItem);
     }
     else
@@ -3660,18 +2932,10 @@ rxPacket:
         }
         relatedNodes.insert (relatedNodes.begin (), m_self.ToString ());
 
-        Mac48Address sender = Mac48Address ( IntToMacAddress (othersIter->sender).c_str ());
         Mac48Address receiver = Mac48Address ( IntToMacAddress (othersIter->receiver).c_str ());
 
         std::vector<std::string> nodesInEr;
-        if (othersIter->isDataEr == true)
-        {
-          nodesInEr = Simulator::ListNodesInEr (receiver.ToString (), othersIter->edgeInterferenceW);
-        }
-        else if (othersIter->isDataEr != true)
-        {
-          nodesInEr = Simulator::ListNodesInEr (sender.ToString (), othersIter->edgeInterferenceW);
-        }
+        nodesInEr = Simulator::ListNodesInEr (receiver.ToString (), othersIter->edgeInterferenceW);
 
         for (std::vector<std::string>::iterator nodesIt = relatedNodes.begin (); nodesIt != relatedNodes.end (); ++ nodesIt)
         {
@@ -3717,8 +2981,6 @@ rxPacket:
       {
         if ( sub_it->itemId == it->itemId)
         {
-          //std::cout<<"In selectErInformationToTransmit: "<< sub_it->d0Vec.size () << std::endl;
-          sub_it->d0Vec.clear ();
           m_othersControlInformation.erase (sub_it);
           break;
         }
@@ -3758,7 +3020,6 @@ rxPacket:
     {
       itemsToSend = m_controlInformation;
     }
-    //std::cout<<m_self.GetNodeId ()<<" printing out sending payload: " << std::endl;
     uint8_t *ptr = NULL;
     m_setLisenterCallback ();
     m_controlPacketPayload.clear ();
@@ -3774,34 +3035,12 @@ rxPacket:
       {
         break;
       }
-      // both sender and receiver are 9-bit integers
-      // sender
+      //Sender Id
       *(ptr++) = (it->sender & 0xff); //the lower 8-bit of the sender. 1 byte finishes
       *(ptr) = ((it->sender >> 8) & 0x01); // the higher 1-bit of the sender
-
-      // receiver
-      *(ptr++) |= ((it->receiver & 0x7f) << 1);// the lower 7-bit of the receiver. 1 byte finishes
-      *(ptr) = ((it->receiver >> 7) & 0x03); // the higher 2-bit of the receiver
-
-      if (it->isDataEr == true)
-      {
-        // is data
-        *(ptr) |= 0x04; // data er
-        *(ptr++) |= ((it->updateSeqNo & 0x1f) << 3);// the lower 5-bit of the version number. 1 byte finishes
-        *(ptr) = ((it->updateSeqNo >> 5) & 0x03); // the higher 2-bit of the version number
-      }
-      else 
-      {
-        *(ptr) |= 0x00; // ack er
-        *(ptr++) |= ((it->updateSeqNo & 0x1f) << 3);// the lower 5-bit of the version number. 1 byte finishes
-        *(ptr) = ((it->updateSeqNo >> 5) & 0x03); // the higher 2-bit of the version number
-      }
-
-      uint16_t edgeInterferenceDbm = (uint16_t)( -AMPLIFY_TIMES * m_phy->GetObject<WifiImacPhy> ()->WToDbm (it->edgeInterferenceW));
-      *(ptr++) |= ((edgeInterferenceDbm & 0x3f) << 2); // lower 6-bit of edge interference dBm. 1 byte finishes
-      *(ptr) = ((edgeInterferenceDbm >> 6) & 0x3f); // higher 2-bit of the edge interference dBm
-
-      // item priority
+      // Version number
+      *(ptr++) |= ((it->updateSeqNo) << 1); // 7 bits
+      //Item priority
       if (it->itemPriority > DEFAULT_INFO_ITEM_PRIORITY)
       {
         it->itemPriority = DEFAULT_INFO_ITEM_PRIORITY;
@@ -3811,19 +3050,12 @@ rxPacket:
         maxPriorityInControlPacketPayload = it->itemPriority;
         m_controlMessagePriority = maxPriorityInControlPacketPayload;
       }
-      *(ptr++) |= (it->itemPriority & 0x03)<<6; //there are only 8 priority levels
-      *(ptr) = (it->itemPriority >> 2) & 0x01;
+      *(ptr) = (it->itemPriority & 0x07);// 3 bits
+      //ER edge
+      uint16_t edgeInterferenceDbm = (uint16_t)( -AMPLIFY_TIMES * m_phy->GetObject<WifiImacPhy> ()->WToDbm (it->edgeInterferenceW));
+      *(ptr++) |= ((edgeInterferenceDbm & 0x1f) << 3); // lower 5 bits
+      *(ptr++) = ((edgeInterferenceDbm >> 5) & 0x7f); //higher 5 bits
 
-      //reception time;
-      *(ptr++) |= ((it->transmittedReceptionTime % MAX_TIME_SLOT_IN_PAYLOAD) & 0x7f) << 1; // low 7 bits
-      *(ptr) = ((it->transmittedReceptionTime % MAX_TIME_SLOT_IN_PAYLOAD) >> 7) & 0x1f;// middle 5 bits
-      *(ptr++) |= ((it->transmittedGenerationTime & 0x07) << 5); // lower level 3 bits of generation time
-      *(ptr++) = ((it->transmittedGenerationTime >> 3) & 0xff); // middle level 8 bits of generation time;
-      *(ptr++) = ((it->transmittedGenerationTime >> 11) & 0x01); // higher level 1 bits of generation time;
-
-
-
-      //std::cout<<" sender: "<<it->sender <<" receiver: "<< it->receiver <<" isDataEr: "<<it->isDataEr <<" erEdge: "<<edgeInterferenceDbm <<" erEdge(W): "<<it->edgeInterferenceW<<" ver: "<< (uint16_t)it->updateSeqNo<<" priority: "<< it->itemPriority <<" transmittedReceptionTime: "<< it->transmittedReceptionTime<<std::endl;
     }
     if ( size_count <= max_size )
     {
@@ -3846,29 +3078,8 @@ rxPacket:
     payload [max_size * item_size + 1] = ((maxErEdgeInterferenceDbm >> 8) & 0x0f);
     payload [max_size * item_size + 1] |=  (controlChannelInterferenceDbm & 0x0f) << 4;
     payload [max_size * item_size + 2] = ((controlChannelInterferenceDbm >> 4) & 0xff);
-    uint32_t linkD0OthersSize = m_linkD0Others.size ();
-    payload [max_size * item_size + 3] = linkD0OthersSize & 0xff;
-    if (Simulator::Now () > Simulator::LearningTimeDuration )
-    {
-      std::cout<<"max er: "<< maxErEdgeInterferenceW <<" ctrl inter: "<< controlChannelInterferenceW<<" item.size: "<< size_count <<" ctrl.dbm: "<< controlChannelInterferenceDbm <<" from: "<< m_self<<" linkD0.size: "<< linkD0OthersSize<<" itemsToSend.size: "<< itemsToSend.size () << std::endl;
-    }
-    uint32_t startPoint = 4;
-    for (std::vector<LinkD0>::iterator it = m_linkD0Others.begin (); it != m_linkD0Others.end (); ++ it)
-    {
-      uint16_t neighbor = m_self.GetNodeId () == it->sender ? it->receiver : it->sender;
-      payload [max_size * item_size + startPoint] = neighbor & 0xff;
-      payload [max_size * item_size + startPoint + 1] |= ((neighbor >> 8) & 0x01);// the 9th bit of neighbor id
-      payload [max_size * item_size + startPoint + 1] |= ((((uint32_t)it->d0CategoryOne) & 0x7f) << 1);// lower 7 bits of d0CategoryOne
-      payload [max_size * item_size + startPoint + 2] = ((((uint32_t)it->d0CategoryOne)>> 7) & 0x0f);// higher 4 bits of d0CategoryOne
-      payload [max_size * item_size + startPoint + 2] |= ((((uint32_t)it->d0CategoryTwo) & 0x0f ) << 4); //lower 4 bits of d0CategoryTwo
-      payload [max_size * item_size + startPoint + 3] = ((((uint32_t)it->d0CategoryTwo) >> 4 ) & 0xff); //higher 8 bits of d0CategoryTwo
-      std::cout<<"neighborId: "<< neighbor << " cat_1: "<< ((uint32_t)it->d0CategoryOne) <<" cat_2: "<<((uint32_t)it->d0CategoryTwo) << std::endl;
-      startPoint = startPoint + 4;
-    }
-    uint8_t txProbability = (uint8_t) (m_selfSendingProbability * 256);
-    payload [max_size * item_size + 4 * (linkD0OthersSize + 1) ] = txProbability;
-    //std::cout<<"sending tx probability: "<< (uint16_t)txProbability<<" self: "<< m_self << std::endl;
-
+    payload [max_size * item_size + 3] = (m_nextSendingSlot - m_currentTimeslot) & 0xff;
+    payload [max_size * item_size + 4] = ((m_nextSendingSlot - m_currentTimeslot) >> 8) & 0xff;
     ptr = NULL;
     return payload;
   }
@@ -3999,7 +3210,7 @@ rxPacket:
     {
       for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
       {
-        if (it->sender == sender && it->receiver == receiver && it->isDataEr == isDataEr )
+        if (it->sender == sender && it->receiver == receiver)
         {
           item = *it;
           break;
@@ -4010,7 +3221,7 @@ rxPacket:
     {
       for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
       {
-        if (it->sender == sender && it->receiver == receiver && it->isDataEr == isDataEr )
+        if (it->sender == sender && it->receiver == receiver)
         {
           item = *it;
           break;
@@ -4019,7 +3230,7 @@ rxPacket:
     }
     if ( item.sender == item.receiver && item.sender== 0) // in case there is no such item
     {
-      item = GenerateDefaultErInfoItem (sender, receiver, isDataEr);
+      item = GenerateDefaultErInfoItem (sender, receiver, true);
     }
     return item;
   }
@@ -4029,12 +3240,10 @@ rxPacket:
 
     for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
     {
-      if (payload.sender == it->sender && payload.receiver == it->receiver && payload.isDataEr == it->isDataEr)
+      if (payload.sender == it->sender && payload.receiver == it->receiver)
       {
         ErInfoItem temp;
         CopyErInfoItem (&payload, &temp);
-        //std::cout<<"updating__ sender: "<< temp.sender << " receiver: "<< temp.receiver<<" made: "<< temp.newEstimationMade << std::endl;
-        it->d0Vec.clear ();
         m_controlInformation.erase (it);
         m_controlInformation.insert (m_controlInformation.begin (), temp);
         return;
@@ -4266,34 +3475,6 @@ rxPacket:
     CopyErInfoItem (&tmp, &((*sortingArray)[k]));
   }
 
-  /*
-     ErInfoItem MacLow::BinarySearchErInfoItem (uint32_t itemId)
-     {
-     int low = 0;
-     int high = m_othersControlInformationCopy.size () - 1;
-     int mid = 0;
-     while ( low <= high)
-     {
-     mid = low + (high-low)/2; 
-     if ( m_othersControlInformationCopy[mid].itemId == itemId )
-     {
-     return m_othersControlInformationCopy[mid];
-     }
-     else if ( m_othersControlInformationCopy[mid].itemId < itemId)
-     {
-     low = mid + 1;
-     }
-     else  if ( m_othersControlInformationCopy[mid].itemId > itemId)
-     {
-     high = mid - 1;
-     }
-     }
-     ErInfoItem item = GenerateDefaultErInfoItem (m_self.GetNodeId (), m_self.GetNodeId (), true);
-     item.sender = 0;
-     item.receiver = 0;
-     return item;
-     }
-     */
 
 
   uint32_t MacLow::BinarySearch (std::vector<uint32_t> &vec, uint32_t key)
@@ -4327,21 +3508,9 @@ rxPacket:
     a->itemId = b->itemId;
     a->sender = b->sender;
     a->receiver = b->receiver;
-    a->isDataEr = b->isDataEr;
-    a->previousEdgeInterferenceW = b->previousEdgeInterferenceW;
     a->edgeInterferenceW = b->edgeInterferenceW;
     a->updateSeqNo = b->updateSeqNo;
     a->itemPriority = b->itemPriority;
-    a->transmittedReceptionTime = b->transmittedReceptionTime;
-    a->newEstimationMade = b->newEstimationMade;
-    a->actualReceptionTime = b->actualReceptionTime;
-    a->transmittedGenerationTime = b->transmittedGenerationTime;
-    a->risingAchieved = b->risingAchieved;
-    for ( uint32_t i = 0; i < b->d0Vec.size () ; ++ i)
-    {
-      a->d0Vec.push_back (b->d0Vec[i]);
-    }
-    b->d0Vec.clear ();
   }
 
   // copy first to second;
@@ -4350,21 +3519,9 @@ rxPacket:
     a->itemId = b->itemId;
     a->sender = b->sender;
     a->receiver = b->receiver;
-    a->isDataEr = b->isDataEr;
-    a->previousEdgeInterferenceW = b->previousEdgeInterferenceW;
     a->edgeInterferenceW = b->edgeInterferenceW;
     a->updateSeqNo = b->updateSeqNo;
     a->itemPriority = b->itemPriority;
-    a->transmittedReceptionTime = b->transmittedReceptionTime;
-    a->newEstimationMade = b->newEstimationMade;
-    a->actualReceptionTime = b->actualReceptionTime;
-    a->transmittedGenerationTime = b->transmittedGenerationTime;
-    a->risingAchieved = b->risingAchieved;
-    for (uint32_t i = 0; i < b->d0Vec.size (); ++ i)
-    {
-      a->d0Vec.push_back (b->d0Vec[i]);
-    }
-    //b->d0Vec.clear ();
   }
 
   double MacLow::FindDeliverTime (uint16_t sender, uint16_t receiver, std::vector<LinkD0> *vecPtr, uint32_t category)
@@ -4388,19 +3545,17 @@ rxPacket:
     return 0; // cannot use negative value, will be converted into unsigned integers
   }
 
-  void MacLow::SetInitialEr (uint16_t sender, uint16_t receiver, bool isDataEr, double initialErW)
+  void MacLow::SetInitialEr (uint16_t sender, uint16_t receiver, double initialErW)
   {
     for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
     {
-      if (it->sender == sender && it->receiver == receiver && it->isDataEr == isDataEr)
+      if (it->sender == sender && it->receiver == receiver)
       {
-        it->previousEdgeInterferenceW = it->edgeInterferenceW;
         it->edgeInterferenceW = initialErW;
         return;
       }
     }
-    ErInfoItem item = GenerateDefaultErInfoItem (sender, receiver, isDataEr);
-    item.previousEdgeInterferenceW = initialErW;
+    ErInfoItem item = GenerateDefaultErInfoItem (sender, receiver, true);
     item.edgeInterferenceW = initialErW;
     m_controlInformation.push_back (item);
 

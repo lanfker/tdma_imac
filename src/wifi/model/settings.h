@@ -109,9 +109,9 @@ const uint32_t DATA_TX_POWER_LEVEL = 0;
 
 
 // ------------------------const define section ------------------------
-const uint32_t MAX_INFO_ITEM_SIZE = 8;
-const uint32_t ER_INFO_ITEM_SIZE = 9;
-const uint32_t MAX_INFO_ITEM_SIZE_IN_DATA_PACKET = 7;
+const uint32_t MAX_INFO_ITEM_SIZE = 18;
+const uint32_t ER_INFO_ITEM_SIZE = 4;
+const uint32_t MAX_INFO_ITEM_SIZE_IN_DATA_PACKET = 15;
 const uint32_t CONTROL_PAYLOAD_LENGTH = MAX_INFO_ITEM_SIZE * ER_INFO_ITEM_SIZE + 28;// the last six bit is for interference in control channel, max er edge interference,d_0 for the first category,  d_0 for the second category, d_0 for the third category
 const uint32_t DATA_PACKET_PAYLOAD_LENGTH = MAX_INFO_ITEM_SIZE_IN_DATA_PACKET * ER_INFO_ITEM_SIZE + 28;
 const uint32_t ER_INFO_ITEM_CATEGORY_ONE = 1;
