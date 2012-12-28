@@ -755,7 +755,7 @@ namespace ns3 {
       //in the future, we may save some time by not calculting for these links.
       for (std::vector<TdmaLink>::iterator it = linkRelatedLinks.begin (); it != linkRelatedLinks.end (); ++ it)
       {
-        if (DoCalculatePriority (it->linkId) > DoCalculatePriority (maxLink.linkId))
+        if (DoCalculatePriority (it->linkId, m_currentTimeslot) > DoCalculatePriority (maxLink.linkId, m_currentTimeslot))
         {
           maxLink = *it;
         }
@@ -774,7 +774,7 @@ namespace ns3 {
           CollectConfilictingLinks (m_conflictingSet);
           initialSlotTxStatus = SenderComputeThePriority (m_self.ToString ());
         }
-        if (m_currentTimeslot == m_nextSendingSlot || initialSlotTxStatus == true)
+        if (m_currentTimeslot == m_nextSendingSlot || (initialSlotTxStatus == true && m_currentTimeslot == 0))
         {
           NS_ASSERT (m_conflictingSet.size () != 0);
           CollectConfilictingLinks (m_conflictingSet);
@@ -985,25 +985,26 @@ namespace ns3 {
     }
     // the linkId won't be 0
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[Mac48Address (addr.c_str ()).GetNodeId ()].selfInitiatedLink;
-    int64_t maxPriorityLinkId = 0;
     for (int64_t slot = m_currentTimeslot; ; ++slot)
     {
       int64_t maxPriority = 0;
+      int64_t maxPriorityLinkId = 0;
       for (std::vector<int64_t>::iterator it = m_conflictingSet.begin (); it != m_conflictingSet.end (); ++ it)
       {
-        if (DoCalculatePriority (*it) > maxPriority)
+        if (DoCalculatePriority (*it, slot) > maxPriority)
         {
+          maxPriority = DoCalculatePriority (*it, slot);
           maxPriorityLinkId = *it;
         }
       }
       if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
       {
-        if ( m_currentTimeslot == 0)
+        if ( m_currentTimeslot == 0 && returnValue == false)
         {
           returnValue = true; // in the first timeslot, will transmit
           continue;
         }
-        else
+        else if ( slot != m_currentTimeslot)
         {
           m_nextSendingSlot = slot;
           break;
@@ -1025,18 +1026,18 @@ namespace ns3 {
   }
   /* Calculate link priority according to link.id
   */
-  int64_t MacLow::DoCalculatePriority (int64_t linkId)
+  int64_t MacLow::DoCalculatePriority (int64_t linkId, int64_t timeslot)
   {
     int64_t base = 10;
     while (true)
     {
-      if ( m_currentTimeslot / base == 0)
+      if ( timeslot / base == 0)
       {
         break;
       }
       base *= 10;
     }
-    int64_t seed = linkId * base + m_currentTimeslot;
+    int64_t seed = linkId * base + timeslot;
     srand (seed ); // set rand seed;
     int64_t priority = rand () * Simulator::NodesCountUpperBound + linkId; 
     return abs (priority);
@@ -2709,7 +2710,6 @@ rxPacket:
     }
     uint32_t itemSize = ER_INFO_ITEM_SIZE;
 
-    //std::cout<<m_self<<" printing out receiving control signal! "<< std::endl;
     for (uint8_t i = 0; i < size; ++ i)
     {
       uint16_t sender = 0;
@@ -2761,6 +2761,7 @@ rxPacket:
     payload.nextRxTimeslot <<= 8;
     payload.nextRxTimeslot |= buffer[size * itemSize + 3];
     payload.nextRxTimeslot += m_currentTimeslot;
+    payload.nextRxTimeslot = (payload.nextRxTimeslot%65536);
     payload.ErRxFromSender = ((uint8_t)buffer[size * itemSize + 5]) == 1 ? true : false;
     return payload;
   }

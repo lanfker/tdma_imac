@@ -648,7 +648,7 @@ namespace ns3 {
        * is idle.
        */
       void CalcPriority (); 
-      int64_t DoCalculatePriority (int64_t linkId);
+      int64_t DoCalculatePriority (int64_t linkId, int64_t timeslot);
       /* When succeeded in priority calculation, the node status is set to be true, meaning active. An active has the previllege of sending
        * DATA or receiving DATA.
        */
