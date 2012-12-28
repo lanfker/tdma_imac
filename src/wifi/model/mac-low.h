@@ -60,6 +60,11 @@ namespace ns3 {
     int64_t linkId;
     int64_t nextSlot;
   } NextTxSlotInfo;
+  typedef struct NewErRxStatus
+  {
+    int64_t linkId;
+    bool allowPdrEstimation;
+  } NewErRxStatus;
   typedef struct LinkEstimatorItem
   {
     uint16_t DataSequenceNo; // the data sequence number from sender S to receiver R
@@ -117,6 +122,7 @@ namespace ns3 {
     double maxErEdgeInterferenceW;
     double controlChannelInterferenceW;
     int64_t nextRxTimeslot;
+    bool ErRxFromSender;
   } Payload;
 
   typedef struct NodesTxProbability
@@ -736,6 +742,9 @@ namespace ns3 {
       void InitiateNextTxSlotInfo  ();
       int64_t GetNextTxSlot (int64_t linkId);
       void UpdateNextRxSlot (int64_t linkId, int64_t nextRxSlot);
+      void InitiateErRxStatus  ();
+      bool GetErRxStatus (int64_t linkId);
+      void UpdateErRxStatus (int64_t linkId, bool receptionStatus);
 
       /****************************************** PRIVATE *********************************************/
     private:
@@ -916,7 +925,6 @@ namespace ns3 {
       bool m_promisc;
       // Listerner needed to monitor when a channel switching occurs.
       class PhyMacLowListener * m_phyMacLowListener;
-      uint32_t m_maxSeqNo;
       //uint32_t m_sequenceVectorCapacity;
       //----------------------------TDMA TDMA TDMA ---------------------------------------------------
       Time m_timeslot;
@@ -955,6 +963,8 @@ namespace ns3 {
       std::vector<int64_t> m_conflictingSet;
       int64_t m_nextSendingSlot;
       std::vector<NextTxSlotInfo> m_nextTxSlotInfo;
+      std::vector<NewErRxStatus> m_newErRxStatus;
+      bool m_newErEdgeReceivedFromReceiver;
 
       /************************POWER CONTROL in TDMA **************************************************/
       uint32_t m_maxBiDirectionalErChangeInformTimes; 

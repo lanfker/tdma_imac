@@ -357,7 +357,6 @@ namespace ns3 {
     m_d0Default = DEFAULT_D0_VALUE;
     m_maxD0SampleSize = MAX_D0_SAMPLE_SIZE; // 
     m_maxTimeslotInPayload = MAX_TIME_SLOT_IN_PAYLOAD; // since we are using 12 bits to express the current time slot,  it is 4096;
-    m_maxSeqNo = MAX_SEQ_NO;
     m_impossibleD0Value = IMPOSSIBLE_D0_VALUE;
     m_maxItemPriority = DEFAULT_INFO_ITEM_PRIORITY;
     m_sendProbLastComputedTimeSlot = 0;
@@ -372,6 +371,7 @@ namespace ns3 {
     m_packetGenreationProbability = DEFAULT_PACKET_GENERATION_PROBABILITY;
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::GeneratePacket, this );
     m_nextSendingSlot = 0; 
+    m_newErEdgeReceivedFromReceiver = false;
   }
 
   MacLow::~MacLow ()
@@ -726,6 +726,11 @@ namespace ns3 {
   {
     int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
     m_currentTimeslot = currentSlot;
+    if ( m_currentTimeslot == 0)
+    {
+      InitiateNextTxSlotInfo ();
+      InitiateErRxStatus  ();
+    }
     Time scheduleDelay = MicroSeconds (DELAY_BEFORE_SWITCH_CHANNEL); // 6.7 ms
     if (Simulator::NodesWillSend.size () != 0 && Simulator::SlotBeginningTime != Simulator::Now ())
     {
@@ -1043,6 +1048,10 @@ namespace ns3 {
     Ptr<WifiImacPhy> imacPhy = m_phy->GetObject<WifiImacPhy> ();
     Payload payload = ParseControlPacketPayload (buffer, hdr );
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
+    if ( payload.ErRxFromSender == true)
+    {
+      UpdateErRxStatus ( linkInfo.linkId, true);
+    }
     if ( linkInfo.receiverAddr == m_self.ToString ())
     {
       UpdateNextRxSlot (linkInfo.linkId, payload.nextRxTimeslot);
@@ -1163,7 +1172,10 @@ namespace ns3 {
         && m_txParams.MustWaitAck () && imacPhy->GetChannelNumber () == DATA_CHANNEL) // ack received from the data channel
     {
       NS_LOG_DEBUG ("receive ack from=" << m_currentHdr.GetAddr1 ());
-
+      if ( m_newErEdgeReceivedFromReceiver == true)
+      {
+        m_newErEdgeReceivedFromReceiver = false;
+      }
       // report ACK been received and update received ack seq number
       ReceiverAddressTag receiverAddress;
       // ack, for me, after learning process, in data channel
@@ -1229,7 +1241,11 @@ namespace ns3 {
         //for data, Addr2 is the data link sender, and addr1==@m_self is the data link receiver
         LinkEstimatorItem estimatorItem = GetEstimatorTableItemByNeighborAddr (hdr.GetAddr2 (), m_self);
         std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<< hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_edge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNodeId () << std::endl;
-        UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
+        TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
+        if ( GetErRxStatus (linkInfo.linkId ) ==  true)
+        {
+          UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
+        }
 
         uint8_t buffer[DATA_PACKET_PAYLOAD_LENGTH];
         packet->CopyData (buffer, DATA_PACKET_PAYLOAD_LENGTH);
@@ -2434,7 +2450,8 @@ rxPacket:
 
   void MacLow::UpdateReceivedDataPacketNumbers (Mac48Address sender, Mac48Address receiver, uint16_t seqNo)
   {
-    seqNo = seqNo % m_maxSeqNo;
+    TdmaLink linkInfo = Simulator::m_nodeLinkDetails[sender.GetNodeId ()].selfInitiatedLink;
+    seqNo = seqNo % MAX_SEQ_NO;
     double estimatedPdr = m_desiredDataPdr;
     double deltaInterferenceDb = 0;
     std::vector<LinkEstimatorItem>::iterator it = m_linkEstimatorTable.begin ();
@@ -2446,6 +2463,17 @@ rxPacket:
         {
           break;
         }
+        if ( it->ReceivedDataPacketNumbers.size  () == 0)
+        {
+          if ( seqNo  != 0)
+          {
+            it->LastDataSequenceNo = seqNo - 1;
+          }
+          else
+          {
+            it->LastDataSequenceNo = MAX_SEQ_NO - 1;
+          }
+        }
         if (find (it->ReceivedDataPacketNumbers.begin (), it->ReceivedDataPacketNumbers.end (), seqNo) == it->ReceivedDataPacketNumbers.end ())
         {
           it->ReceivedDataPacketNumbers.insert (it->ReceivedDataPacketNumbers.begin (), seqNo);
@@ -2456,7 +2484,7 @@ rxPacket:
         int difference = 0;
         if ( it->LastDataSequenceNo > seqNo ) // overflow
         {
-          difference = seqNo + m_maxSeqNo - it->LastDataSequenceNo;
+          difference = seqNo + MAX_SEQ_NO - it->LastDataSequenceNo;
         }
         else  // not overflow
         {
@@ -2477,6 +2505,7 @@ rxPacket:
             it->DataPdr = receivedCount / (double)difference;
           }
           estimatedPdr = receivedCount / (double) difference;
+          it->ReceivedDataPacketNumbers.clear ();
           std::cout<<m_self<<" from: "<<sender<<" real segment pdr: "<< receivedCount / (double)difference << std::endl;
           // -----------------UPDATE SENDING PROBABILITY --------------------------
 #ifdef TX_DURATION_PROBABILITY
@@ -2565,6 +2594,7 @@ rxPacket:
           if (deltaInterferenceDb != 0)
           {
             it->LastDataErEdgeInterferenceW = tempPhy-> GetErEdgeInterference (deltaInterferenceWatt, it->LastDataErEdgeInterferenceW, &edgeNode, conditionTwoMeet); //Since the data link pdr has changed, we also update the data ER edge interference. /Watt
+            UpdateErRxStatus (linkInfo.linkId , false);
           }
           if (it->previousDataErW < it->LastDataErEdgeInterferenceW) // when ER size decreases, always reset this;
           {
@@ -2731,6 +2761,7 @@ rxPacket:
     payload.nextRxTimeslot <<= 8;
     payload.nextRxTimeslot |= buffer[size * itemSize + 3];
     payload.nextRxTimeslot += m_currentTimeslot;
+    payload.ErRxFromSender = ((uint8_t)buffer[size * itemSize + 5]) == 1 ? true : false;
     return payload;
   }
 
@@ -2762,7 +2793,7 @@ rxPacket:
   void MacLow::UpdateReceivedErInfoItem (ErInfoItem erItem,  Mac48Address controlPacketSender)
   {
     uint16_t originalSender = 0;
-    originalSender = erItem.receiver;
+    originalSender = erItem.receiver;//The first node who sends out the informaiton
     if ( originalSender == m_self.GetNodeId ())
     {
       return; // if the current node is the original sender of the er information item, we don't have to do anything.
@@ -2785,7 +2816,10 @@ rxPacket:
         //NEW ER estimation, judge according to verison number
         if (it->updateSeqNo < erItem.updateSeqNo || difference > IMPOSSIBLE_VER_NO_DIFFERENCE)
         {
-
+          if (m_self.GetNodeId () == it->sender)// received a new ER edge information item
+          {
+            m_newErEdgeReceivedFromReceiver = true;
+          }
           //--------------------------------------------------------------------------------
           //              UPDATE INFO ITEM FIELDS
           //--------------------------------------------------------------------------------
@@ -3080,6 +3114,14 @@ rxPacket:
     payload [max_size * item_size + 2] = ((controlChannelInterferenceDbm >> 4) & 0xff);
     payload [max_size * item_size + 3] = (m_nextSendingSlot - m_currentTimeslot) & 0xff;
     payload [max_size * item_size + 4] = ((m_nextSendingSlot - m_currentTimeslot) >> 8) & 0xff;
+    if (m_newErEdgeReceivedFromReceiver == true)
+    {
+      payload [max_size * item_size + 5] &= 0x01;
+    }
+    else
+    {
+      payload [max_size * item_size + 5] &= 0x00;
+    }
     ptr = NULL;
     return payload;
   }
@@ -3677,6 +3719,45 @@ rxPacket:
     }
     Simulator::Schedule (generationInterval, &MacLow::GeneratePacket, this);
 
+  }
+
+  void MacLow::InitiateErRxStatus  ()
+  {
+    std::vector<TdmaLink> selfRelatedLinks =  Simulator::FindRelatedLinks (m_self.ToString ());
+    for (std::vector<TdmaLink>::iterator it = selfRelatedLinks.begin (); it != selfRelatedLinks.end (); ++ it)
+    {
+      if (it->senderAddr == m_self.ToString ())
+      {
+        continue;
+      }
+      NewErRxStatus status;
+      status.linkId = it->linkId;
+      status.allowPdrEstimation = true; 
+      m_newErRxStatus.push_back (status);
+    }
+  }
+  bool MacLow::GetErRxStatus (int64_t linkId)
+  {
+    for (std::vector<NewErRxStatus>::iterator it = m_newErRxStatus.begin (); it != m_newErRxStatus.end (); ++ it)
+    {
+      if (it->linkId == linkId)
+      {
+        return it->allowPdrEstimation;
+      }
+    }
+    return false;
+  }
+
+  void MacLow::UpdateErRxStatus (int64_t linkId, bool receptionStatus)
+  {
+    for (std::vector<NewErRxStatus>::iterator it = m_newErRxStatus.begin (); it != m_newErRxStatus.end (); ++ it)
+    {
+      if (it->linkId == linkId)
+      {
+        it->allowPdrEstimation = receptionStatus;
+        return;
+      }
+    }
   }
 
 } // namespace ns3
