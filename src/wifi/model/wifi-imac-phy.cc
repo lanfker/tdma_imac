@@ -1336,7 +1336,7 @@ maybeCcaBusy:
         m_interference.ControlChannel_NotifyDataEndReceiving ();
       }
 
-      if (hdr.IsData () && !hdr.GetAddr1 ().IsGroup () && GetChannelNumber () == DATA_CHANNEL)
+      if (hdr.IsData () && !hdr.GetAddr1 ().IsGroup () && GetChannelNumber () == DATA_CHANNEL && hdr.GetAddr1 () == m_self)
       {
         std::cout<<"from "<<hdr.GetAddr2 ()<<" to "<< m_self<<" snr=" << 10*log10(snrPer.snr) << ", per=" << snrPer.per <<" concurrentTxNO: "<<GetConcurrentTxNo ()<< std::endl;
       }

@@ -12,11 +12,11 @@
 
 #define RID_INITIAL_ER
 //#define ENABLE_RID
-//#define MIN_VARIANCE_CONTROLLER
+#define MIN_VARIANCE_CONTROLLER
 
 //#define P_CONTROLLER_DESIRED_PDR
 
-#define P_CONTROLLER_REFERENCE_I
+//#define P_CONTROLLER_REFERENCE_I
 
 //#define CONSERVATIVE_ER_CHANGE
 
@@ -165,7 +165,7 @@ const int64_t UNDEFINED_NEXT_TX_SLOT = -1;
 
 
 //-----------------------CONTROLLER --------------------------------
-const double DELTA_Y = 0.03;
+const double DELTA_Y = 0.00;
 const double E_0 = 0.04;
 
 /*

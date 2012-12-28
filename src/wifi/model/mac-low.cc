@@ -1049,7 +1049,7 @@ namespace ns3 {
     Ptr<WifiImacPhy> imacPhy = m_phy->GetObject<WifiImacPhy> ();
     Payload payload = ParseControlPacketPayload (buffer, hdr );
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
-    if ( payload.ErRxFromSender == true)
+    if ( payload.ErRxFromSender == true && m_self.ToString () == linkInfo.receiverAddr)
     {
       UpdateErRxStatus ( linkInfo.linkId, true);
     }
@@ -1060,8 +1060,8 @@ namespace ns3 {
     for (std::vector<ErInfoItem>::iterator _it = payload.vec.begin (); _it != payload.vec.end (); ++ _it)
     {
 
-      Mac48Address originalSender = Mac48Address ( IntToMacAddress (_it->sender).c_str ());
-      if ( originalSender == m_self) // if is an Info Item of my own when as sender, @m_self always has the latest information
+      Mac48Address originalSender = Mac48Address ( IntToMacAddress (_it->receiver).c_str ());
+      if ( originalSender == m_self) // if is an Info Item of my own when as receiver, @m_self always has the latest information
       {
         continue;
       }
@@ -2763,6 +2763,7 @@ rxPacket:
     payload.nextRxTimeslot += m_currentTimeslot;
     payload.nextRxTimeslot = (payload.nextRxTimeslot%65536);
     payload.ErRxFromSender = ((uint8_t)buffer[size * itemSize + 5]) == 1 ? true : false;
+    //std::cout<<m_self<<" payload.ErRxFromSender: "<< payload.ErRxFromSender << std::endl;
     return payload;
   }
 
@@ -3115,13 +3116,14 @@ rxPacket:
     payload [max_size * item_size + 2] = ((controlChannelInterferenceDbm >> 4) & 0xff);
     payload [max_size * item_size + 3] = (m_nextSendingSlot - m_currentTimeslot) & 0xff;
     payload [max_size * item_size + 4] = ((m_nextSendingSlot - m_currentTimeslot) >> 8) & 0xff;
+    //std::cout<<m_self <<" m_newErEdgeReceivedFromReceiver: "<< m_newErEdgeReceivedFromReceiver << std::endl;
     if (m_newErEdgeReceivedFromReceiver == true)
     {
-      payload [max_size * item_size + 5] &= 0x01;
+      payload [max_size * item_size + 5] = 1;
     }
     else
     {
-      payload [max_size * item_size + 5] &= 0x00;
+      payload [max_size * item_size + 5] = 0;
     }
     ptr = NULL;
     return payload;
@@ -3172,7 +3174,7 @@ rxPacket:
   void MacLow::GenerateDataPacketAndSend ()
   {  
     NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
-    std::cout<<Simulator::Now () <<" "<<m_self<<" queue_size: "<< m_packetQueue.size () << std::endl;
+    //std::cout<<Simulator::Now () <<" "<<m_self<<" queue_size: "<< m_packetQueue.size () << std::endl;
     if ( m_packetQueue.size () > 0 ) // if there are no packets to send, just return;
     {
       m_packetQueue.pop_back ();
@@ -3426,7 +3428,6 @@ rxPacket:
 
   void MacLow::quick_sort(std::vector<ErInfoItem> *sortArray)
   {
-    //std::cout<<m_self<<" invoking sorting algorithm! "<< std::endl;
     int startIndex = 0;
     int endIndex = 0;
 
