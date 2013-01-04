@@ -769,7 +769,7 @@ namespace ns3 {
       if (maxLink.senderAddr == m_self.ToString ()) 
       {
         bool initialSlotTxStatus = false;
-        if ( m_currentTimeslot == 0)
+        if ( m_currentTimeslot == 0 || m_nextSendingSlot == 0)
         {
           CollectConfilictingLinks (m_conflictingSet);
           initialSlotTxStatus = SenderComputeThePriority (m_self.ToString ());
@@ -891,19 +891,21 @@ namespace ns3 {
       m_dataReceiverAddr = receiver;
     }
 
-    //????????????????????????????
-    std::vector<double> ers = GetErInforItemForLink (sender, receiver, Mac48Address (linkInfo.senderAddr.c_str ()), Mac48Address (linkInfo.receiverAddr.c_str ()));// get ER information (edge interference)
+    std::vector<double> ers = GetErInforItemForLink (sender, receiver);// get ER information (edge interference)
 
 
     std::vector<std::string> nodesInEr;
 #ifdef ENABLE_ACK_ER
     nodesInEr = Simulator::ListNodesInEr (sender.ToString (), ers[1], receiver.ToString (), ers[0]); // get all the nodes in ER. This vector also contains the sender and receiver of the target link
 #else
-    nodesInEr = Simulator::ListNodesInEr (receiver.ToString (), ers[0]); 
+    if (ers[0] != IMPOSSIBLE_ER)
+    {
+      nodesInEr = Simulator::ListNodesInEr (receiver.ToString (), ers[0]); 
+    }
 #endif
 
     // has not added the target link itself 
-    for (std::vector<std::string>::iterator it = nodesInEr.begin (); it != nodesInEr.end (); ++ it) // for every node in ER.
+    for (std::vector<std::string>::iterator it = nodesInEr.begin (); it != nodesInEr.end () && nodesInEr.size () != 0; ++ it) // for every node in ER.
     {
       std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[Mac48Address (it->c_str ()).GetNodeId ()].relatedLinks;
       for (std::vector<TdmaLink>::iterator _it = relatedLinks.begin (); _it != relatedLinks.end (); ++ _it)
@@ -953,22 +955,24 @@ namespace ns3 {
       {
         //Find nodes in ER
 
-        std::vector<double> _ers = GetErInforItemForLink (Mac48Address (it->senderAddr.c_str ()) ,Mac48Address (it->receiverAddr.c_str ()), Mac48Address (linkInfo.senderAddr.c_str ()), Mac48Address (linkInfo.receiverAddr.c_str ()));// get ER information (edge interference)
+        std::vector<double> _ers = GetErInforItemForLink (Mac48Address (it->senderAddr.c_str ()) ,Mac48Address (it->receiverAddr.c_str ()));// get ER information (edge interference)
 
         std::vector<std::string> _nodesInEr;
 
 #ifdef ENABLE_ACK_ER
         _nodesInEr = Simulator::ListNodesInEr (it->senderAddr, _ers[1], it->receiverAddr, _ers[0]); // get all the nodes in ER. This vector also contains the sender and receiver of the target link
 #else
-        _nodesInEr = Simulator::ListNodesInEr (it->receiverAddr, _ers[0]); 
+        if ( _ers[0] != IMPOSSIBLE_ER)
+        {
+          _nodesInEr = Simulator::ListNodesInEr (it->receiverAddr, _ers[0]); 
+        }
 #endif
         //if the ER of the un-added link contains the target link (no matter the sender or receiver or both)
-        if ( find (_nodesInEr.begin (), _nodesInEr.end (), linkInfo.senderAddr)!= _nodesInEr.end () ||
-            find (_nodesInEr.begin (), _nodesInEr.end (), linkInfo.receiverAddr) != _nodesInEr.end ()) 
+        if ((_nodesInEr.size () != 0) && (find (_nodesInEr.begin (), _nodesInEr.end (), linkInfo.senderAddr)!= _nodesInEr.end () || find (_nodesInEr.begin (), _nodesInEr.end (), linkInfo.receiverAddr) != _nodesInEr.end ())) 
         {
           vec.push_back (it->linkId);
         }
-      } 
+      }
     }
     // add target_link
     vec.push_back (linkInfo.linkId);
@@ -1067,7 +1071,9 @@ namespace ns3 {
       }
       _it->itemId = (_it->sender * Simulator::NodesCountUpperBound + _it->receiver) * 10;
       _it->itemId += 1; //for data er
+      UpdateReceivedErInfoItem (*_it, hdr.GetAddr2 ());
 
+      /*
       //-------------------------------------------------------------------------------------
       // Check the ER edge stored locally, use the larger ER to decide if the current node
       // need to receive the ER info item or not. Use the larger Er region to decide
@@ -1123,6 +1129,7 @@ namespace ns3 {
       {
         UpdateReceivedErInfoItem (*_it, hdr.GetAddr2 ());
       }
+    */
     }
 
     if (payload.vec.size () != 0)
@@ -1587,6 +1594,11 @@ rxPacket:
       double maxNI = 0;
       Ptr<WifiImacPhy> imacPhy = m_phy->GetObject<WifiImacPhy> ();
       std::vector<std::string> nodesInEr = Simulator::ListNodesInEr (m_self.ToString (), m_informingRange);
+      if (nodesInEr.size () < Simulator::MinInformRange)
+      {
+        nodesInEr.clear ();
+        nodesInEr = Simulator::ListNodesInEr(m_self.ToString ());
+      }
       for (std::vector<std::string>::iterator it = nodesInEr.begin (); it != nodesInEr.end (); ++ it)
       {
         //std::vector<TdmaLink> relatedLinks = Simulator::FindRelatedLinks (it->c_str ());
@@ -2347,7 +2359,7 @@ rxPacket:
    * In this way, we are trying to avoid channel inconsistency
    * NO D_0 CONCEPT ANY MORE
    */
-  std::vector<double> MacLow::GetErInforItemForLink (Mac48Address sender, Mac48Address receiver, Mac48Address targetSender, Mac48Address targetReceiver)
+  std::vector<double> MacLow::GetErInforItemForLink (Mac48Address sender, Mac48Address receiver)
   {
     bool dataFound = false;    
     std::vector<double> retVector; // the first element is the data er, the second element is the ack er
@@ -2740,9 +2752,10 @@ rxPacket:
 
       // edge_interference
       uint16_t edgeInterferenceDbm = 0;
-      edgeInterferenceDbm = ((buffer[i * itemSize + 2] >>3) & 0x1f);
+
+      edgeInterferenceDbm = (buffer[i * itemSize + 3] & 0x7f);
       edgeInterferenceDbm <<= 5;
-      edgeInterferenceDbm |= (buffer[i * itemSize + 3] & 0x7f);
+      edgeInterferenceDbm |= ((buffer[i * itemSize + 2] >>3) & 0x1f);
       item.edgeInterferenceW = m_phy->GetObject<WifiImacPhy> ()->DbmToW ((double)edgeInterferenceDbm/AMPLIFY_TIMES * -1);
 
       payload.vec.push_back (item);
@@ -2760,8 +2773,8 @@ rxPacket:
     payload.nextRxTimeslot = buffer[size * itemSize + 4];
     payload.nextRxTimeslot <<= 8;
     payload.nextRxTimeslot |= buffer[size * itemSize + 3];
-    payload.nextRxTimeslot += m_currentTimeslot;
     payload.nextRxTimeslot = (payload.nextRxTimeslot%65536);
+    payload.nextRxTimeslot += m_currentTimeslot;
     payload.ErRxFromSender = ((uint8_t)buffer[size * itemSize + 5]) == 1 ? true : false;
     //std::cout<<m_self<<" payload.ErRxFromSender: "<< payload.ErRxFromSender << std::endl;
     return payload;
@@ -2953,6 +2966,25 @@ rxPacket:
       }
       else if ( selfPriority < othersPriority && othersIter != m_othersControlInformation.end ())
       {
+
+        /*
+        //________________________________NO_FORWARD_RESTRICTION________________________________________________________
+        retVector.push_back ( *othersIter );
+        ErInfoItem temp;
+        CopyErInfoItem (othersIter, &temp);
+        itemsSentInOthers.push_back (temp); // record the item that will be sent
+        if (temp.itemPriority != 0)
+        {
+          temp.itemPriority  -= 1;
+        }
+        ErInfoItem tempItem = *othersIter;
+        *othersIter = m_othersControlInformation[itemSentCountInOthers];
+        m_othersControlInformation[itemSentCountInOthers] = tempItem; //move the sent item to the front of the vector, later, we calculate their position in the vector to realize the round-robin mechanism
+        itemSentCountInOthers += 1;
+        //______________________________________________________________________________________________________________
+        */
+
+        //__________________________________FORWARD_RESTRICTION_________________________________________________________
         std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks;
         std::vector<std::string> relatedNodes;
         for (std::vector<TdmaLink>::iterator it = relatedLinks.begin (); it != relatedLinks.end (); ++ it)
@@ -2972,6 +3004,11 @@ rxPacket:
 
         std::vector<std::string> nodesInEr;
         nodesInEr = Simulator::ListNodesInEr (receiver.ToString (), othersIter->edgeInterferenceW);
+        if (nodesInEr.size () < Simulator::MinInformRange)
+        {
+          nodesInEr.clear ();
+          nodesInEr = Simulator::ListNodesInEr(receiver.ToString ());
+        }
 
         for (std::vector<std::string>::iterator nodesIt = relatedNodes.begin (); nodesIt != relatedNodes.end (); ++ nodesIt)
         {
@@ -2992,6 +3029,8 @@ rxPacket:
             break;
           }
         }
+        //_______________________________________________________________________________________________________________
+
         //retVector.push_back ( *othersIter );
         if (othersIter != m_othersControlInformation.end ())
         {
@@ -3093,6 +3132,7 @@ rxPacket:
       *(ptr++) = ((edgeInterferenceDbm >> 5) & 0x7f); //higher 5 bits
 
     }
+    std::cout<<m_self<<" item.size.in.payload: "<< size_count << std::endl;
     if ( size_count <= max_size )
     {
       uint32_t invalid_sender = INVALID_SENDER;

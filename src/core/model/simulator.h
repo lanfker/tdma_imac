@@ -39,6 +39,7 @@ const double PATH_LOSS_EXPONENT = 2.6;
 const uint32_t LEARNING_PROCESS_DURATION = 200;
 const uint32_t SIMULATION_STOP_TIME = 3000;
 const uint32_t NODE_COUNT_UPPER_BOUND = 1000;
+const uint32_t MIN_INFORM_RANGE = 20;
 class SimulatorImpl;
 class Scheduler;
 
@@ -169,6 +170,7 @@ public:
   static int16_t NodesCountUpperBound;
   static Time SimulationStopTime;
   static Time LearningTimeDuration;
+  static uint32_t MinInformRange;
   static std::vector<std::string> NodesWillSend;
   // if the @Simulator::Now () is different from this value, that means, we are entering a new slot, therefore, we need to clear
   static Time SlotBeginningTime; 
@@ -842,6 +844,7 @@ public:
   static std::vector<TdmaLink> FindRelatedLinks (std::string addr);
   static std::vector<std::string> ListNodesInEr (std::string senderAddr, double senderErEdgeInterferenceW, std::string receiverAddr, double receiverErEdgeInterferenceW);
   static std::vector<std::string> ListNodesInEr (std::string nodeAddr, double nodeErEdgeInterferenceW);
+  static std::vector<std::string> ListNodesInEr (std::string nodeAddr);
   static void SenderRegisterControlReliability (std::string sender, std::vector<std::string> idealReceivers); // actual receiver count: 0
   static void ReceiverRegisterControlReliability (std::string sender, std::string receiver); // count ++
   static void CountFinalControlReliability ();

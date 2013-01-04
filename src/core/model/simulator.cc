@@ -118,6 +118,7 @@ namespace ns3 {
   }
 
   Time Simulator::LearningTimeDuration = Seconds (LEARNING_PROCESS_DURATION);
+  uint32_t Simulator::MinInformRange = MIN_INFORM_RANGE;
   Time Simulator::SimulationStopTime = Seconds (SIMULATION_STOP_TIME);
   int16_t Simulator::NodesCountUpperBound = NODE_COUNT_UPPER_BOUND;
   std::vector<TdmaLink> Simulator::m_tdmaLinks;
@@ -246,6 +247,31 @@ namespace ns3 {
           if (_it->supposedInterferenceW >= nodeErEdgeInterferenceW)
           {
             neighbors.push_back (_it->from);
+          }
+        }
+      }
+    }
+
+    if ( find (neighbors.begin (), neighbors.end (), nodeAddr) == neighbors.end ())
+    {
+      neighbors.push_back (nodeAddr);
+    }
+    return neighbors;
+  }
+
+  std::vector<std::string> Simulator::ListNodesInEr (std::string nodeAddr)
+  {
+    std::vector<std::string> neighbors;
+    for (std::vector<NodeSignalMap>::iterator it = m_signalMaps.begin (); it != m_signalMaps.end (); ++ it)
+    {
+      if (it->selfAddress == nodeAddr )
+      {
+        for (std::vector<TdmaSignalMap>::iterator _it = it->signalMap.begin (); _it != it->signalMap.end (); ++ _it)
+        {
+          neighbors.push_back (_it->from);
+          if (neighbors.size () == MinInformRange)
+          {
+            break;
           }
         }
       }

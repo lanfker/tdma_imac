@@ -801,7 +801,7 @@ namespace ns3 {
       LinkEstimatorItem GetEstimatorTableItemByNeighborAddr (Mac48Address sender, Mac48Address receiver );
 
 
-      std::vector<double> GetErInforItemForLink (Mac48Address sender, Mac48Address receiver, Mac48Address targetSender, Mac48Address targetReceiver);
+      std::vector<double> GetErInforItemForLink (Mac48Address sender, Mac48Address receiver);
 
       /* param estimatorItem The item in the estimator table that need to update. We identify the item according to the
        * neighbor address in this item.
