@@ -2932,21 +2932,26 @@ rxPacket:
       othersPriority = -1;
     }
     std::vector<ErInfoItem> retVector;
-    for (uint32_t i=0; i < totalSize; ++ i)
+    for (uint32_t i=0; i < totalSize;)
     {
       if ( retVector.size () == totalSize || (selfIter == m_controlInformation.end () && othersIter == m_othersControlInformation.end ()) )
       {
+        //std::cout<<" retVector.size: "<< retVector.size () << " total.size: "<< totalSize << " self=end: "<< (selfIter == m_controlInformation.end ()) << " others=end: "<< (othersIter == m_othersControlInformation.end ())<<" m_othersControlInformation.size: "<< m_othersControlInformation.size ()<<std::endl;
         break;
       }
-      if ( selfPriority >= othersPriority && selfPriority > 0 && selfIter != m_controlInformation.end ())
+      //std::cout<<m_self<<" selfPriority: "<<selfPriority<< " othersPriority: "<< othersPriority<<std::endl;
+      if ( selfPriority >= othersPriority && selfPriority >=0 && selfIter != m_controlInformation.end ())
       {
 
+        //std::cout<<m_self<<" in_self" <<std::endl;
         if ( selfIter->edgeInterferenceW < m_informingRange)
         {
           //for power control
           m_informingRange = selfIter->edgeInterferenceW;
         }
         retVector.push_back ( *selfIter );
+        ++ i;
+        //std::cout<<m_self<<" pushing self information. "<<" m_othersControlInformation.size: "<< m_othersControlInformation.size () << std::endl;
         if (selfIter->itemPriority != 0)
         {
           selfIter->itemPriority -= 1;
@@ -2964,12 +2969,13 @@ rxPacket:
           selfPriority = selfIter->itemPriority;
         }
       }
-      else if ( selfPriority < othersPriority && othersIter != m_othersControlInformation.end ())
+      else if ( selfPriority < othersPriority && othersPriority >= 0 && othersIter != m_othersControlInformation.end ())
       {
 
         /*
         //________________________________NO_FORWARD_RESTRICTION________________________________________________________
         retVector.push_back ( *othersIter );
+        ++ i;
         ErInfoItem temp;
         CopyErInfoItem (othersIter, &temp);
         itemsSentInOthers.push_back (temp); // record the item that will be sent
@@ -3009,12 +3015,14 @@ rxPacket:
           nodesInEr.clear ();
           nodesInEr = Simulator::ListNodesInEr(receiver.ToString ());
         }
+        //std::cout<<m_self<<" nodesInEr.size: "<< nodesInEr.size ()<<" m_othersControlInformation.size: "<< m_othersControlInformation.size () << std::endl;
 
         for (std::vector<std::string>::iterator nodesIt = relatedNodes.begin (); nodesIt != relatedNodes.end (); ++ nodesIt)
         {
           if (find (nodesInEr.begin (), nodesInEr.end (), *nodesIt) != nodesInEr.end ())// if the current node is in the link's ER
           {
             retVector.push_back ( *othersIter );
+            ++ i;
             ErInfoItem temp;
             CopyErInfoItem (othersIter, &temp);
             itemsSentInOthers.push_back (temp); // record the item that will be sent
@@ -3047,6 +3055,7 @@ rxPacket:
 
       }
     }
+
     // only when send out a control message, sort the vector
     //sort (m_othersControlInformation.begin (), m_othersControlInformation.end (), ErInfoItemCompare);
     for (std::vector<ErInfoItem>::iterator it = itemsSentInOthers.begin (); it != itemsSentInOthers.end (); ++ it)
@@ -3078,6 +3087,7 @@ rxPacket:
       }
     }
     sort (m_controlInformation.begin (), m_controlInformation.end (), ErInfoItemCompare);
+    //std::cout<<m_self<<" retVector.size: "<< retVector.size () << std::endl;
     return retVector;
   }
 
