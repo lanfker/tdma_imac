@@ -3632,13 +3632,13 @@ rxPacket:
       othersPriority = -1;
     }
     std::vector<ErInfoItem> retVector;
-    for (uint32_t i=0; i < totalSize; ++ i)
+    for (uint32_t i=0; i < totalSize;)
     {
       if ( retVector.size () == totalSize || (selfIter == m_controlInformation.end () && othersIter == m_othersControlInformation.end ()) )
       {
         break;
       }
-      if ( selfPriority >= othersPriority && selfPriority > 0 && selfIter != m_controlInformation.end ())
+      if ( selfPriority >= othersPriority && selfPriority >= 0 && selfIter != m_controlInformation.end ())
       {
 
         if ( selfIter->edgeInterferenceW < m_informingRange)
@@ -3647,6 +3647,7 @@ rxPacket:
           m_informingRange = selfIter->edgeInterferenceW;
         }
         retVector.push_back ( *selfIter );
+        ++ i;
         if (selfIter->itemPriority != 0)
         {
           selfIter->itemPriority -= 1;
@@ -3664,7 +3665,7 @@ rxPacket:
           selfPriority = selfIter->itemPriority;
         }
       }
-      else if ( selfPriority < othersPriority && othersIter != m_othersControlInformation.end ())
+      else if ( selfPriority < othersPriority && othersIter >= 0 && othersIter != m_othersControlInformation.end ())
       {
         std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks;
         std::vector<std::string> relatedNodes;
@@ -3699,6 +3700,7 @@ rxPacket:
           if (find (nodesInEr.begin (), nodesInEr.end (), *nodesIt) != nodesInEr.end ())// if the current node is in the link's ER
           {
             retVector.push_back ( *othersIter );
+            ++ i;
             ErInfoItem temp;
             CopyErInfoItem (othersIter, &temp);
             itemsSentInOthers.push_back (temp); // record the item that will be sent
