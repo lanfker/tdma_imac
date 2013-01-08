@@ -64,6 +64,7 @@ namespace ns3 {
   {
     int64_t linkId;
     bool allowPdrEstimation;
+    int64_t slotCount; // -1: Do not count.  0: start counting
   } NewErRxStatus;
   typedef struct LinkEstimatorItem
   {
@@ -745,6 +746,8 @@ namespace ns3 {
       void InitiateErRxStatus  ();
       bool GetErRxStatus (int64_t linkId);
       void UpdateErRxStatus (int64_t linkId, bool receptionStatus);
+      void IncreaseSlotCount ();
+      void ResetPriorityForErItem (int64_t linkId);
 
       /****************************************** PRIVATE *********************************************/
     private:

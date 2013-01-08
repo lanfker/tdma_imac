@@ -726,6 +726,7 @@ namespace ns3 {
   {
     int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
     m_currentTimeslot = currentSlot;
+    IncreaseSlotCount ();
     if ( m_currentTimeslot == 0)
     {
       InitiateNextTxSlotInfo ();
@@ -824,7 +825,6 @@ namespace ns3 {
         {
           nodeStatus = false;
         }
-        //nodeStatus = SenderComputeThePriority (maxLink.senderAddr);
         if (nodeStatus == true ) // as receiver
         {
           m_nodeActive = true; 
@@ -991,17 +991,22 @@ namespace ns3 {
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[Mac48Address (addr.c_str ()).GetNodeId ()].selfInitiatedLink;
     for (int64_t slot = m_currentTimeslot; ; ++slot)
     {
-      int64_t maxPriority = 0;
-      int64_t maxPriorityLinkId = 0;
+      int64_t selfPriority = DoCalculatePriority (linkInfo.linkId, slot);
+      bool selfMax = true;
+      //int64_t maxPriority = 0;
+      //int64_t maxPriorityLinkId = 0;
       for (std::vector<int64_t>::iterator it = m_conflictingSet.begin (); it != m_conflictingSet.end (); ++ it)
       {
-        if (DoCalculatePriority (*it, slot) > maxPriority)
+        if (*it != linkInfo.linkId && DoCalculatePriority (*it, slot) >= selfPriority)
         {
-          maxPriority = DoCalculatePriority (*it, slot);
-          maxPriorityLinkId = *it;
+          selfMax = false;
+          break;
+          //maxPriority = DoCalculatePriority (*it, slot);
+          //maxPriorityLinkId = *it;
         }
       }
-      if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
+      //if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
+      if (selfMax == true ) 
       {
         if ( m_currentTimeslot == 0 && returnValue == false)
         {
@@ -3785,6 +3790,7 @@ rxPacket:
       NewErRxStatus status;
       status.linkId = it->linkId;
       status.allowPdrEstimation = true; 
+      status.slotCount = -1;
       m_newErRxStatus.push_back (status);
     }
   }
@@ -3807,7 +3813,43 @@ rxPacket:
       if (it->linkId == linkId)
       {
         it->allowPdrEstimation = receptionStatus;
+        if ( receptionStatus == true)
+        {
+          it->slotCount = -1;
+        }
+        else if ( receptionStatus == false)
+        {
+          it->slotCount = 0;
+        }
         return;
+      }
+    }
+  }
+
+  void MacLow::IncreaseSlotCount ()
+  {
+    for (std::vector<NewErRxStatus>::iterator it = m_newErRxStatus.begin (); it != m_newErRxStatus.end (); ++ it)
+    {
+      if (it->slotCount >= 0)
+      {
+        it->slotCount += 1;
+      }
+      if ( it->slotCount == PRIORITY_RESET_TIMESLOT)
+      {
+        ResetPriorityForErItem (it->linkId);
+        it->slotCount = 0; 
+      }
+    }
+  }
+  void MacLow::ResetPriorityForErItem (int64_t linkId)
+  {
+    for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
+    {
+      int64_t iteratorLinkId = it->sender * Simulator::NodesCountUpperBound + it->receiver;
+      if (linkId == iteratorLinkId)
+      {
+        it->itemPriority = DEFAULT_INFO_ITEM_PRIORITY + EXTRA_HIGHEST_PRIORITY_SENDING_TRIALS;
+        break;
       }
     }
   }
