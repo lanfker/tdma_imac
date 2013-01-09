@@ -88,23 +88,7 @@ namespace ns3 {
     double AckInterferenceW;
   }LinkEstimatorItem;
 
-  typedef struct LinkD0
-  {
-    uint16_t sender;
-    uint16_t receiver;
-    double d0CategoryOne;
-    double d0CategoryTwo;
-    bool firstCategorySampled;
-    bool secondCategorySampled;
-  } LinkD0;
 
-  typedef struct LinkD0Samples
-  {
-    uint16_t sender;
-    uint16_t receiver;
-    std::vector<double> d0SampleCategoryOne;
-    std::vector<double> d0SampleCategoryTwo;
-  } LinkD0Samples;
 
   typedef struct ErInfoItem 
   {
@@ -708,7 +692,6 @@ namespace ns3 {
       std::vector<ErInfoItem> SelectErInfoItemsToTransmit (uint32_t totalSize ) ;
       ErInfoItem GenerateDefaultErInfoItem (uint16_t sender, uint16_t receiver, bool isDataEr);
       LinkEstimatorItem GenerateLinkEstimatorItem (Mac48Address sender, Mac48Address receiver);
-      uint32_t ComputeDelayBetweenTwoTimeslots (uint32_t nowTimeslot, uint32_t targetTimeslot);
       uint32_t FindInfoItemCategory (Mac48Address orginalSender, Mac48Address currentSender, Mac48Address currentReceiver, double edgeW);
 
       uint8_t* GenerateControlPayload (uint32_t maxSize, uint32_t itemSize, uint8_t payload[]);
@@ -732,12 +715,9 @@ namespace ns3 {
       void CopyErInfoItem (ErInfoItem *a, ErInfoItem *b);
       void CopyErInfoItem (std::vector<ErInfoItem>::iterator it, ErInfoItem *b);
       ErInfoItem BinarySearchErInfoItem (uint32_t itemId);
-      double FindDeliverTime (uint16_t sender, uint16_t receiver, std::vector<LinkD0>* vecPtr, uint32_t category);
       void SetInitialEr (uint16_t sender, uint16_t receiver,  double initialErW);
-      std::vector<LinkD0>::iterator  FindLinkD0Item ( uint16_t sender, uint16_t receiver, std::vector<LinkD0> &vec);
       void UpdateNodeTxProbability ( NodesTxProbability item );
       double GetNodeTxProbability ( uint16_t nodeId ) const;
-      double InsertD0Sample (uint16_t sender, uint16_t receiver, double sample, uint32_t category);
       void GeneratePacket ();
       void CollectConfilictingLinks ( std::vector<int64_t> &vec);
       void InitiateNextTxSlotInfo  ();
@@ -942,23 +922,12 @@ namespace ns3 {
       std::vector<ErInfoItem> m_controlInformation; // this is for the node itself
       std::vector<ErInfoItem> m_othersControlInformation; // this is for the node itself
       ErInfoItem m_othersControlInformationCopy[INFO_ITEM_SUM]; // this is for the node itself
-      uint16_t m_d0Default;
-      uint32_t m_maxD0SampleSize;
-      uint32_t m_maxTimeslotInPayload;
-      uint32_t m_impossibleD0Value;
-      uint16_t m_maxItemPriority;
-      std::vector<uint32_t> m_categoryOneD0Samples;
-      std::vector<uint32_t> m_categoryTwoD0Samples;
-      std::vector<uint32_t> m_categoryThreeD0Samples;
       std::vector<ErInfoItem> *sortingArray;
-      std::vector<LinkD0> m_linkD0Others;
-      std::vector<LinkD0> m_linkD0Self;
       uint32_t m_sendProbLastComputedTimeSlot;
       uint32_t m_sendingCount;
       double m_selfSendingProbability;
       std::vector<NodesTxProbability> m_nodesTxProbability;
       uint32_t m_conflictingSetSize;
-      std::vector<LinkD0Samples> m_linkD0SamplesVec;
       std::vector<uint32_t> m_packetQueue;
       UniformVariable m_uniform;
       double m_packetGenreationProbability;

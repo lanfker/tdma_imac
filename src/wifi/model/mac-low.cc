@@ -354,11 +354,6 @@ namespace ns3 {
     m_defaultPriority = MAX_CONTROL_PACKET_PRIORITY;
     m_maxBiDirectionalErChangeInformTimes = m_defaultInformTimes;
     m_defaultInformTimes = MAX_ER_INFORM_TIMES;
-    m_d0Default = DEFAULT_D0_VALUE;
-    m_maxD0SampleSize = MAX_D0_SAMPLE_SIZE; // 
-    m_maxTimeslotInPayload = MAX_TIME_SLOT_IN_PAYLOAD; // since we are using 12 bits to express the current time slot,  it is 4096;
-    m_impossibleD0Value = IMPOSSIBLE_D0_VALUE;
-    m_maxItemPriority = DEFAULT_INFO_ITEM_PRIORITY;
     m_sendProbLastComputedTimeSlot = 0;
     m_selfSendingProbability = DEFAULT_TX_PROBABILITY;
     m_sendingCount = 0;
@@ -737,10 +732,10 @@ namespace ns3 {
     {
       // for a new time slot, clear the data for the previous time slot and update the slot beginning time to identify that
       // we are working on a new slot now;
-      Simulator::ClearSendingNodes ();
+      //Simulator::ClearSendingNodes ();
       Simulator::SlotBeginningTime = Simulator::Now (); 
-      Simulator::CountFinalControlReliability ();
-      Simulator::m_nodesInDataChannel.clear ();
+      //Simulator::CountFinalControlReliability ();
+      //Simulator::m_nodesInDataChannel.clear ();
     }
 
 
@@ -780,7 +775,7 @@ namespace ns3 {
           NS_ASSERT (m_conflictingSet.size () != 0);
           CollectConfilictingLinks (m_conflictingSet);
           SenderComputeThePriority (m_self.ToString ()); //Compute for the next sending timeslot
-          Simulator::m_nodesInDataChannel.push_back (m_self.ToString());
+          //Simulator::m_nodesInDataChannel.push_back (m_self.ToString());
           m_nodeActive = true; 
           // once the node knows it could be active in the slot, stop computing
           Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
@@ -2785,29 +2780,6 @@ rxPacket:
     return payload;
   }
 
-  uint32_t MacLow::ComputeDelayBetweenTwoTimeslots (uint32_t nowTimeslot, uint32_t targetTimeslot)
-  {
-    uint32_t temp = 0;
-    uint32_t difference = 0;
-    if ( nowTimeslot % m_maxTimeslotInPayload >= targetTimeslot)
-    {
-      difference = nowTimeslot % m_maxTimeslotInPayload - targetTimeslot;
-    }
-    else if ( nowTimeslot % m_maxTimeslotInPayload < targetTimeslot)
-    {
-      difference = targetTimeslot - nowTimeslot % m_maxTimeslotInPayload;
-    }
-    if (( nowTimeslot % m_maxTimeslotInPayload) > targetTimeslot &&
-        difference < m_impossibleD0Value)
-    {
-      temp = (nowTimeslot % m_maxTimeslotInPayload) - targetTimeslot; //the first item must be the item of its own;
-    }
-    else if (difference >= m_impossibleD0Value) //overflow
-    {
-      temp = m_maxTimeslotInPayload + (nowTimeslot % m_maxTimeslotInPayload) - targetTimeslot; //the first item must be the item of its own;
-    }
-    return temp;
-  }
 
 
   void MacLow::UpdateReceivedErInfoItem (ErInfoItem erItem,  Mac48Address controlPacketSender)
@@ -3147,7 +3119,6 @@ rxPacket:
       *(ptr++) = ((edgeInterferenceDbm >> 5) & 0x7f); //higher 5 bits
 
     }
-    std::cout<<m_self<<" item.size.in.payload: "<< size_count << std::endl;
     if ( size_count <= max_size )
     {
       uint32_t invalid_sender = INVALID_SENDER;
@@ -3623,26 +3594,6 @@ rxPacket:
     a->itemPriority = b->itemPriority;
   }
 
-  double MacLow::FindDeliverTime (uint16_t sender, uint16_t receiver, std::vector<LinkD0> *vecPtr, uint32_t category)
-  {
-    for (std::vector<LinkD0>::iterator it = vecPtr->begin (); it != vecPtr->end (); ++ it)
-    {
-      if (it->sender == sender && it->receiver == receiver)
-      {
-        if ( category == ER_INFO_ITEM_CATEGORY_ONE )
-        {
-          //std::cout<<" found category one: "<< it->d0CategoryOne << std::endl;
-          return it->d0CategoryOne;
-        }
-        else if (category == ER_INFO_ITEM_CATEGORY_TWO )
-        {
-          //std::cout<<" found category two: "<< it->d0CategoryOne << std::endl;
-          return it->d0CategoryTwo;
-        }
-      }
-    }
-    return 0; // cannot use negative value, will be converted into unsigned integers
-  }
 
   void MacLow::SetInitialEr (uint16_t sender, uint16_t receiver, double initialErW)
   {
@@ -3660,17 +3611,6 @@ rxPacket:
 
   }
 
-  std::vector<LinkD0>::iterator MacLow::FindLinkD0Item ( uint16_t sender, uint16_t receiver, std::vector<LinkD0> &vec)
-  {
-    for (std::vector<LinkD0>::iterator it = vec.begin (); it != vec.end (); ++ it)
-    {
-      if (it->sender == sender && it->receiver == receiver )
-      {
-        return it;
-      }
-    }
-    return vec.end ();
-  }
 
   void MacLow::UpdateNodeTxProbability ( NodesTxProbability item )
   {
@@ -3718,48 +3658,6 @@ rxPacket:
     return DEFAULT_TX_PROBABILITY;
   }
 
-  double MacLow::InsertD0Sample (uint16_t sender, uint16_t receiver, double sample, uint32_t category)
-  {
-    // if find, insert and get a quantile, return
-    for (std::vector<LinkD0Samples>::iterator it = m_linkD0SamplesVec.begin (); it != m_linkD0SamplesVec.end (); ++ it)
-    {
-      if ( it->sender == sender && it->receiver == receiver)
-      {
-        if (category == ER_INFO_ITEM_CATEGORY_ONE)
-        {
-          if ( it->d0SampleCategoryOne.size () == MAX_D0_SAMPLE_SIZE)
-          {
-            it->d0SampleCategoryOne.erase (it->d0SampleCategoryOne.begin ());
-          }
-          it->d0SampleCategoryOne.push_back (sample);
-          return FindQuantileValue (D_0_QUANTILE, it->d0SampleCategoryOne);
-        }
-        else if ( category == ER_INFO_ITEM_CATEGORY_TWO)
-        {
-          if (it->d0SampleCategoryTwo.size () == MAX_D0_SAMPLE_SIZE)
-          {
-            it->d0SampleCategoryTwo.erase (it->d0SampleCategoryTwo.begin ());
-          }
-          it->d0SampleCategoryTwo.push_back (sample);
-          return FindQuantileValue (D_0_QUANTILE, it->d0SampleCategoryTwo);
-        }
-      }
-    }
-    // if cannot find, create a new item and return the sampled value;
-    LinkD0Samples  linkD0Sample;
-    linkD0Sample.sender = sender;
-    linkD0Sample.receiver = receiver;
-    if (category == ER_INFO_ITEM_CATEGORY_ONE )
-    {
-      linkD0Sample.d0SampleCategoryOne.push_back (sample);
-    }
-    else if ( category == ER_INFO_ITEM_CATEGORY_TWO)
-    {
-      linkD0Sample.d0SampleCategoryTwo.push_back (sample);
-    }
-    m_linkD0SamplesVec.push_back (linkD0Sample);
-    return sample;
-  }
 
 
   void MacLow::GeneratePacket ()

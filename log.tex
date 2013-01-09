@@ -1,11 +1,13 @@
 \section {PRKS- Revision Reminder}
 \begin{itemize}
   \item No previous $d_0$ concept, which means we do not have to do $d_0$ sampling anymore $\rightarrow$ We can re-define the $ER-INFO-ITEM$ we need to transmit.(DONE)
-  \item GetErInfoItemForLink (.) needs to change (DONE)
-  \item If conflicting set size is 0, do not send. (not a sender). If return value of SenderComputePriority is false and m\_currentTimeslot = 0, do not send (DONE)
-  \item If currentTimeslot = 0 or is sending timesot, collect conflicting set and compute priority (DONE)
+  \item $GetErInfoItemForLink (\dot)$ needs to be changed (DONE)
+  \item If conflicting set size is 0, do not send. (not a sender). If return value of $SenderComputePriority$ is false and $m\_currentTimeslot = 0$, do not send (DONE)
+  \item If $m\_currentTimeslot = 0$ or is sending timesot, collect conflicting set and compute priority (DONE)
   \item Note that there is no concept of preempted links anymore. (DONE)
   \item Update next transmission slot information at the receiver side. (DONE)
   \item disable ACK ER control (DONE)
-  \item When new estimation is made, set the @allowPdrEstimation to be false, only when the receiver confirms that its sender has received this ER information, set @allowPdrEstimation back to true;
+  \item When new estimation is made, set the $@allowPdrEstimation$ to be false, only when the receiver confirms that its sender has received this ER information, set $@allowPdrEstimation$ back to be true; (DONE)
+  \item For link estimation, if after some time, (e.g., 100 timeslots), the new ER information still hasn't been received by its corresponding sender, RE-SET the item priority for such ER information item and let it be sent at the highest priority. This is to solve the problem that a receiver might never estimates link reliability again due to its corresponding sender never received its new ER information. (DONE)
+  \item Check simulation time, why it takes so much time for a single simulation run to finish.
 \end{itemize}
