@@ -1169,7 +1169,7 @@ namespace ns3 {
       packet->CopyData (buffer, CONTROL_PAYLOAD_LENGTH);
       ProcessControlPayload (buffer, hdr);
 
-      Simulator::ReceiverRegisterControlReliability (hdr.GetAddr2 ().ToString (), m_self.ToString ());
+      //Simulator::ReceiverRegisterControlReliability (hdr.GetAddr2 ().ToString (), m_self.ToString ());
     }
 
     //_____________________________________________________________________________________________________________________
@@ -3187,7 +3187,7 @@ rxPacket:
 
       //For Control signal reliability
       std::vector<std::string> nodesInEr = Simulator::ListNodesInEr (m_self.ToString (), m_informingRange);
-      Simulator::SenderRegisterControlReliability (m_self.ToString (), nodesInEr);
+      //Simulator::SenderRegisterControlReliability (m_self.ToString (), nodesInEr);
 
       SendDataPacket ();
       if ( m_controlMessagePriority != 0)
