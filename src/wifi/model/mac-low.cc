@@ -1003,9 +1003,9 @@ namespace ns3 {
       //if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
       if (selfMax == true ) 
       {
-        if ( m_currentTimeslot == 0 && returnValue == false)
+        if ( m_currentTimeslot == slot && returnValue == false)
         {
-          returnValue = true; // in the first timeslot, will transmit
+          returnValue = true; //Can transmit at the current timslot 
           continue;
         }
         else if ( slot != m_currentTimeslot)
@@ -2913,14 +2913,11 @@ rxPacket:
     {
       if ( retVector.size () == totalSize || (selfIter == m_controlInformation.end () && othersIter == m_othersControlInformation.end ()) )
       {
-        //std::cout<<" retVector.size: "<< retVector.size () << " total.size: "<< totalSize << " self=end: "<< (selfIter == m_controlInformation.end ()) << " others=end: "<< (othersIter == m_othersControlInformation.end ())<<" m_othersControlInformation.size: "<< m_othersControlInformation.size ()<<std::endl;
         break;
       }
-      //std::cout<<m_self<<" selfPriority: "<<selfPriority<< " othersPriority: "<< othersPriority<<std::endl;
       if ( selfPriority >= othersPriority && selfPriority >=0 && selfIter != m_controlInformation.end ())
       {
 
-        //std::cout<<m_self<<" in_self" <<std::endl;
         if ( selfIter->edgeInterferenceW < m_informingRange)
         {
           //for power control
@@ -2928,7 +2925,6 @@ rxPacket:
         }
         retVector.push_back ( *selfIter );
         ++ i;
-        //std::cout<<m_self<<" pushing self information. "<<" m_othersControlInformation.size: "<< m_othersControlInformation.size () << std::endl;
         if (selfIter->itemPriority != 0)
         {
           selfIter->itemPriority -= 1;
@@ -2992,7 +2988,6 @@ rxPacket:
           nodesInEr.clear ();
           nodesInEr = Simulator::ListNodesInEr(receiver.ToString ());
         }
-        //std::cout<<m_self<<" nodesInEr.size: "<< nodesInEr.size ()<<" m_othersControlInformation.size: "<< m_othersControlInformation.size () << std::endl;
 
         for (std::vector<std::string>::iterator nodesIt = relatedNodes.begin (); nodesIt != relatedNodes.end (); ++ nodesIt)
         {
@@ -3064,7 +3059,6 @@ rxPacket:
       }
     }
     sort (m_controlInformation.begin (), m_controlInformation.end (), ErInfoItemCompare);
-    //std::cout<<m_self<<" retVector.size: "<< retVector.size () << std::endl;
     return retVector;
   }
 
@@ -3464,17 +3458,8 @@ rxPacket:
 
   void MacLow::quick_sort(std::vector<ErInfoItem> *sortArray, int startIndex, int endIndex)
   {
-    /*
-       std::cout<<" sorting result: "<< std::endl;
-       for (std::vector<ErInfoItem>::iterator it = sortArray->begin (); it != sortArray->end (); ++ it)
-       {
-       std::cout<<" id: "<< it->itemId<< std::endl;
-       }
-       std::cout<<" startIndex "<<startIndex << " endIndex "<< endIndex << std::endl;
-       */
     if(startIndex >= endIndex)
     {
-      //std::cout<<" ends!"<< std::endl;
       return;
     }
 
@@ -3489,7 +3474,6 @@ rxPacket:
     {
       // get pivot
       int pivot = Partition(sortingArray, left, right);
-      //std::cout<<" pivot "<< pivot << std::endl;
 
       // sort left side
       quick_sort(sortingArray, left, (pivot-1) );
@@ -3650,11 +3634,9 @@ rxPacket:
     {
       if ( it->nodeId == nodeId )
       {
-        //std::cout<<Simulator::Now () <<" "<<nodeId<<" tx_probability: "<< it->txProbability << std::endl;
         return it->txProbability;
       }
     }
-    //std::cout<<Simulator::Now () <<" "<<nodeId<<" tx_probability: "<< DEFAULT_TX_PROBABILITY << std::endl;
     return DEFAULT_TX_PROBABILITY;
   }
 
