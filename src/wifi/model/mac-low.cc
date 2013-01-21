@@ -1691,7 +1691,7 @@ rxPacket:
         m_maxBiDirectionalErChangeInformTimes --;
       }
       m_previousSendingPower = txPower;
-      std::cout<<" transmission power for control signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
+      std::cout<<m_self<<" transmission power for control signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
 #endif
 #ifdef MAX_POWER_LEVEL
       uint8_t txPower = MAX_TX_POWER_LEVEL;
