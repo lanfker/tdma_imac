@@ -98,6 +98,7 @@ namespace ns3 {
     float edgeInterferenceW;
     uint8_t updateSeqNo;
     int32_t itemPriority;
+    double risingAchieved;
   } ErInfoItem;
 
 
@@ -108,6 +109,7 @@ namespace ns3 {
     double controlChannelInterferenceW;
     int64_t nextRxTimeslot;
     bool ErRxFromSender;
+    double txProbability;
   } Payload;
 
   typedef struct NodesTxProbability

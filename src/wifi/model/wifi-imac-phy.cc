@@ -1435,7 +1435,7 @@ maybeCcaBusy:
    * @lastErEdgeInterference is separately maintained
    * return the boundary interference of the Exclusive region
    */
-  double WifiImacPhy::GetErEdgeInterference (double deltaInterferenceW, double lastErEdgeInterferenceW, Mac48Address *edgeNode, bool conditionTwoMeet) // both parameters are in the unit of Watt
+  double WifiImacPhy::GetErEdgeInterference (double deltaInterferenceW, double lastErEdgeInterferenceW, Mac48Address *edgeNode, bool conditionTwoMeet, bool risingAchieved) // both parameters are in the unit of Watt
   {
     bool isEdgeFound = false;
     *edgeNode = Mac48Address::GetBroadcast ();
@@ -1447,15 +1447,19 @@ maybeCcaBusy:
       for (vector<Ptr<SignalMap> >::const_iterator it = m_signalMap.begin (); it != m_signalMap.end (); ++ it)
       {
         double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*it)->inBoundAttenuation; //dBm
-        #ifdef TX_PROBABILITY_1 
         supposedInterferenceW = DbmToW (supposedInterferenceDbm);
-        #else
-        //also consider the tx Probability;
-        supposedInterferenceW = DbmToW (supposedInterferenceDbm) * m_nodeTxProbabilityCallback ( (*it)->from.GetNodeId () ); 
-        #endif
         if (supposedInterferenceW < m_erEdgeInterferenceW) // if the supposed interference is less than the last ER edge interference, we should start computing the delta interference power; 
         {
           isEdgeFound = true;
+#ifdef TX_PROBABILITY_1 
+          supposedInterferenceW = DbmToW (supposedInterferenceDbm);
+#else
+          //also consider the tx Probability;
+          if (risingAchieved == false)
+          {
+            supposedInterferenceW = DbmToW (supposedInterferenceDbm) * m_nodeTxProbabilityCallback ( (*it)->from.GetNodeId () ); 
+          }
+#endif
           deltaInterferenceW += supposedInterferenceW; //Watt 
           if ( deltaInterferenceW >= 0)
           {
@@ -1488,26 +1492,19 @@ maybeCcaBusy:
       for (vector<Ptr<SignalMap> >::const_reverse_iterator it = m_signalMap.rbegin (); it != m_signalMap.rend (); ++ it)
       {
         double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*it)->inBoundAttenuation;//Dbm
-        #ifdef TX_PROBABILITY_1
         supposedInterferenceW = DbmToW (supposedInterferenceDbm);
-        #else
-        //also consider the tx Probability;
-        supposedInterferenceW = DbmToW (supposedInterferenceDbm) * m_nodeTxProbabilityCallback ( (*it)->from.GetNodeId () ); 
-          // if not define CONSERVATIVE_ER_CHANGE, we get the normal supposed InterferenceW with tx probability
-          #ifdef  CONSERVATIVE_ER_CHANGE
-          if (risingAchieved == false )
-          {
-            supposedInterferenceW = DbmToW (supposedInterferenceDbm) * m_nodeTxProbabilityCallback ( (*it)->from.GetNodeId () ); 
-          }
-          else if (risingAchieved == true)
-          {
-            supposedInterferenceW = DbmToW (supposedInterferenceDbm);
-          }
-          #endif
-        #endif
         if (supposedInterferenceW > m_erEdgeInterferenceW ) // since this time, the delta interference is positive, we want to shrink the ER region, that means when the supposed interference is greater than or equal to the last ER region edge interference, we should start computing the delta interference power. Note that here we use the reverse_iterator, so we are iterating the vector from end to the beginning
         {
           isEdgeFound = true;
+#ifdef TX_PROBABILITY_1
+          supposedInterferenceW = DbmToW (supposedInterferenceDbm);
+#else
+          //also consider the tx Probability;
+          if (risingAchieved == false)
+          {
+            supposedInterferenceW = DbmToW (supposedInterferenceDbm) * m_nodeTxProbabilityCallback ( (*it)->from.GetNodeId () ); 
+          }
+#endif
           deltaInterferenceW -= supposedInterferenceW; 
           if ( deltaInterferenceW == 0) 
           {

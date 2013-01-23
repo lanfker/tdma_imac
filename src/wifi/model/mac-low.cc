@@ -1143,6 +1143,10 @@ namespace ns3 {
       imacPhy->SetSignalMap (senderSignalMap, imacPhy->GetCurrentNoiseW ());
       senderSignalMap = imacPhy-> GetSignalMapItem (hdr.GetAddr2 ()); 
     }
+    NodesTxProbability nodesTxProb;
+    nodesTxProb.nodeId = hdr.GetAddr2 ().GetNodeId ();
+    nodesTxProb.txProbability = payload.txProbability;
+    UpdateNodeTxProbability (nodesTxProb);
 
   }
 
@@ -2342,6 +2346,7 @@ rxPacket:
     item.edgeInterferenceW = IMPOSSIBLE_ER;
     item.updateSeqNo = 0;
     item.itemPriority = 0;
+    item.risingAchieved = false;
     item.itemId = (sender * Simulator::NodesCountUpperBound + receiver) * 10;
     if ( isDataEr == true )
     {
@@ -2518,6 +2523,10 @@ rxPacket:
             it->DataPdr = receivedCount / (double)difference;
           }
           estimatedPdr = receivedCount / (double) difference;
+          if (estimatedPdr >= m_desiredDataPdr )
+          {
+            payloadItem.risingAchieved = true;
+          }
           it->ReceivedDataPacketNumbers.clear ();
           std::cout<<m_self<<" from: "<<sender<<" real segment pdr: "<< receivedCount / (double)difference << std::endl;
           // -----------------UPDATE SENDING PROBABILITY --------------------------
@@ -2606,7 +2615,7 @@ rxPacket:
           Mac48Address edgeNode;
           if (deltaInterferenceDb != 0)
           {
-            it->LastDataErEdgeInterferenceW = tempPhy-> GetErEdgeInterference (deltaInterferenceWatt, it->LastDataErEdgeInterferenceW, &edgeNode, conditionTwoMeet); //Since the data link pdr has changed, we also update the data ER edge interference. /Watt
+            it->LastDataErEdgeInterferenceW = tempPhy-> GetErEdgeInterference (deltaInterferenceWatt, it->LastDataErEdgeInterferenceW, &edgeNode, conditionTwoMeet, payloadItem.risingAchieved); //Since the data link pdr has changed, we also update the data ER edge interference. /Watt
             UpdateErRxStatus (linkInfo.linkId , false);
           }
           if (it->previousDataErW < it->LastDataErEdgeInterferenceW) // when ER size decreases, always reset this;
@@ -2776,6 +2785,8 @@ rxPacket:
     payload.nextRxTimeslot = (payload.nextRxTimeslot%65536);
     payload.nextRxTimeslot += m_currentTimeslot;
     payload.ErRxFromSender = ((uint8_t)buffer[size * itemSize + 5]) == 1 ? true : false;
+    uint8_t txProbability = ((uint8_t)buffer[size * itemSize + 6]);
+    payload.txProbability = (double)txProbability / 256;
     //std::cout<<m_self<<" payload.ErRxFromSender: "<< payload.ErRxFromSender << std::endl;
     return payload;
   }
@@ -3145,6 +3156,7 @@ rxPacket:
     {
       payload [max_size * item_size + 5] = 0;
     }
+    payload [max_size * item_size + 6] = (uint8_t) (m_selfSendingProbability * 256); // 1 byte for tx_probability;
     ptr = NULL;
     return payload;
   }
@@ -3565,6 +3577,7 @@ rxPacket:
     a->edgeInterferenceW = b->edgeInterferenceW;
     a->updateSeqNo = b->updateSeqNo;
     a->itemPriority = b->itemPriority;
+    a->risingAchieved = b->risingAchieved;
   }
 
   // copy first to second;
@@ -3576,6 +3589,7 @@ rxPacket:
     a->edgeInterferenceW = b->edgeInterferenceW;
     a->updateSeqNo = b->updateSeqNo;
     a->itemPriority = b->itemPriority;
+    a->risingAchieved = b->risingAchieved;
   }
 
 

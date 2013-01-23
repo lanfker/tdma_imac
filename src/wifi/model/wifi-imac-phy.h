@@ -220,7 +220,7 @@ namespace ns3 {
       void SendPacket (Ptr<const Packet> packet, WifiMode mode, enum WifiPreamble preamble, double txPower);
       /* 
       */
-      double GetErEdgeInterference ( double deltaInterference, double lastErEdgeInterference, Mac48Address *edgeNode, bool conditionTwoMeet);
+      double GetErEdgeInterference ( double deltaInterference, double lastErEdgeInterference, Mac48Address *edgeNode, bool conditionTwoMeet, bool risingAchieved);
       struct Compare {
         bool operator () (Ptr<SignalMap> a, Ptr<SignalMap> b) { return a->inBoundAttenuation < b->inBoundAttenuation; }
       } myCompare;
