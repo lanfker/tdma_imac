@@ -3665,7 +3665,7 @@ rxPacket:
           selfPriority = selfIter->itemPriority;
         }
       }
-      else if ( selfPriority < othersPriority && othersIter >= 0 && othersIter != m_othersControlInformation.end ())
+      else if ( selfPriority < othersPriority && othersPriority >= 0 && othersIter != m_othersControlInformation.end ())
       {
         std::vector<TdmaLink> relatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks;
         std::vector<std::string> relatedNodes;
