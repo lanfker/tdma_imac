@@ -27,15 +27,15 @@ const double DESIRED_DATA_PDR = 0.9;
 const double DESIRED_ACK_PDR = 0.9;
 //Tx Probability
 
+#ifndef TX_DURATION_PROBABILITY
+#define TX_DURATION_PROBABILITY
+#endif
+/*
 #ifndef TX_PROBABILITY_1
 #define TX_PROBABILITY_1 
 #endif
-/*
 #ifndef CONFLICTING_SET_PROBABILITY
 #define CONFLICTING_SET_PROBABILITY
-#endif
-#ifndef TX_DURATION_PROBABILITY
-#define TX_DURATION_PROBABILITY
 #endif
 #ifndef ESTIMATED_MAX
 #define ESTIMATED_MAX
