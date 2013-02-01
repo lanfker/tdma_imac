@@ -1,5 +1,7 @@
 \section {PRKS- Revision Reminder}
 \begin{itemize}
+  \item When receiving a sender\_computed\_next\_timeslot, re-set @nextTxSlot[from sender and from receiver]
+
   \item No previous $d_0$ concept, which means we do not have to do $d_0$ sampling anymore $\rightarrow$ We can re-define the $ER-INFO-ITEM$ we need to transmit.(DONE)
   \item $GetErInfoItemForLink (\dot)$ needs to be changed (DONE)
   \item If conflicting set size is 0, do not send. (not a sender). If return value of $SenderComputePriority$ is false and $m\_currentTimeslot = 0$, do not send (DONE)

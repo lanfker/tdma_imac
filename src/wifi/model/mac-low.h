@@ -58,8 +58,15 @@ namespace ns3 {
   typedef struct NextTxSlotInfo //This is for the case when @m_self is the receiver
   {
     int64_t linkId;
-    int64_t nextSlot;
+    std::vector<int64_t> nextSlots;
+    int64_t nextSlotFromSender;
+    bool beConservative;
   } NextTxSlotInfo;
+  typedef struct NextRxSlotInfo
+  {
+    int64_t linkId;
+    int64_t nextSlot;
+  } NextRxSlotInfo;
   typedef struct NewErRxStatus
   {
     int64_t linkId;
@@ -110,6 +117,7 @@ namespace ns3 {
     int64_t nextRxTimeslot;
     bool ErRxFromSender;
     double txProbability;
+    std::vector<NextRxSlotInfo> rxVec;
   } Payload;
 
   typedef struct NodesTxProbability
@@ -721,15 +729,19 @@ namespace ns3 {
       void UpdateNodeTxProbability ( NodesTxProbability item );
       double GetNodeTxProbability ( uint16_t nodeId ) const;
       void GeneratePacket ();
-      void CollectConfilictingLinks ( std::vector<int64_t> &vec);
+      void CollectConfilictingLinks ( std::vector<int64_t> &vec, Mac48Address sender);
       void InitiateNextTxSlotInfo  ();
-      int64_t GetNextTxSlot (int64_t linkId);
-      void UpdateNextRxSlot (int64_t linkId, int64_t nextRxSlot);
+      NextTxSlotInfo GetNextTxSlot (int64_t linkId);
+      void UpdateNextRxSlot (int64_t linkId, int64_t nextRxSlot, bool fromSender);
+      void UpdateConservativeStatus (int64_t linkId, bool beConservative);
+      void ClearNextRxSlot (int64_t linkId);
       void InitiateErRxStatus  ();
       bool GetErRxStatus (int64_t linkId);
       void UpdateErRxStatus (int64_t linkId, bool receptionStatus);
       void IncreaseSlotCount ();
       void ResetPriorityForErItem (int64_t linkId);
+      std::vector<NextRxSlotInfo> CalcNextRxSlotAsReceiver ();
+      int64_t ComputeNextRxSlot (Mac48Address sender);
 
       /****************************************** PRIVATE *********************************************/
     private:

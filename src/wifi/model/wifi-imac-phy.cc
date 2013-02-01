@@ -1024,7 +1024,7 @@ maybeCcaBusy:
       {
         if (GetChannelNumber () == CONTROL_CHANNEL)
         {
-          std::cout<<"control_txDuration: "<< txDuration <<" time: "<<Simulator::Now () <<" packet length: "<< pkt->GetSize ()<<" hdr length: "<< hdr.GetSize () << std::endl;
+          std::cout<<m_self<<" "<<Simulator::Now () <<" control_txDuration: "<< txDuration  <<" packet length: "<< pkt->GetSize ()<<" hdr length: "<< hdr.GetSize () << std::endl;
         }
       }
       if (m_state->IsStateRx ())

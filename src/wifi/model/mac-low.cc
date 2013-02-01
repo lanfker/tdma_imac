@@ -679,31 +679,67 @@ namespace ns3 {
       }
       NextTxSlotInfo info;
       info.linkId = it->linkId;
-      info.nextSlot = UNDEFINED_NEXT_TX_SLOT; 
+      info.nextSlotFromSender = UNDEFINED_NEXT_TX_SLOT;
+      info.nextSlots.push_back (UNDEFINED_NEXT_TX_SLOT);
       m_nextTxSlotInfo.push_back (info);
     }
   }
 
   // do not consider the case where @m_self is the sender 
-  int64_t MacLow::GetNextTxSlot (int64_t linkId)
+  NextTxSlotInfo MacLow::GetNextTxSlot (int64_t linkId)
   {
     for (std::vector<NextTxSlotInfo>::iterator it = m_nextTxSlotInfo.begin (); it != m_nextTxSlotInfo.end (); ++ it)
     {
       if (it->linkId == linkId)
       {
-        return it->nextSlot;
+        return *it;
       }
     }
-    return UNDEFINED_NEXT_TX_SLOT; // this sentence should never be executed.
+    //std::cout<<m_self<<" did not find item: line 697"<<std::endl;
+    NextTxSlotInfo nullInfo;
+    nullInfo.linkId = 0;
+    nullInfo.nextSlotFromSender = UNDEFINED_NEXT_TX_SLOT;
+    return nullInfo; // this sentence should never be executed.
   }
 
-  void MacLow::UpdateNextRxSlot (int64_t linkId, int64_t nextRxSlot)
+  void MacLow::UpdateConservativeStatus (int64_t linkId, bool beConservative)
   {
     for (std::vector<NextTxSlotInfo>::iterator it = m_nextTxSlotInfo.begin (); it != m_nextTxSlotInfo.end (); ++ it)
     {
       if (it->linkId == linkId)
       {
-        it->nextSlot = nextRxSlot;
+        it->beConservative = beConservative;
+        return;
+      }
+    }
+  }
+
+  // if fromSender == true, update both fields
+  void MacLow::UpdateNextRxSlot (int64_t linkId, int64_t nextRxSlot, bool fromSender)
+  {
+    for (std::vector<NextTxSlotInfo>::iterator it = m_nextTxSlotInfo.begin (); it != m_nextTxSlotInfo.end (); ++ it)
+    {
+      if (it->linkId == linkId)
+      {
+        if (fromSender == true)
+        {
+          it->nextSlotFromSender = nextRxSlot;
+        }
+        else if ( find (it->nextSlots.begin (),it->nextSlots.end (), nextRxSlot ) == it->nextSlots.end ())
+        {
+          it->nextSlots.push_back (nextRxSlot);
+        }
+      }
+    }
+  }
+
+  void MacLow::ClearNextRxSlot (int64_t linkId)
+  {
+    for (std::vector<NextTxSlotInfo>::iterator it = m_nextTxSlotInfo.begin (); it != m_nextTxSlotInfo.end (); ++ it)
+    {
+      if (it->linkId == linkId)
+      {
+        it->nextSlots.clear ();
       }
     }
   }
@@ -719,6 +755,12 @@ namespace ns3 {
    */
   void MacLow::CalcPriority ()
   {
+    /*
+    if (m_nextSendingSlot < m_currentTimeslot)
+    {
+      std::cout<<m_self<<" next sending slot less than current timeslot! "<<std::endl;
+    }
+    */
     int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
     m_currentTimeslot = currentSlot;
     IncreaseSlotCount ();
@@ -762,18 +804,18 @@ namespace ns3 {
       //If for the max priority link, the current node is the sender, 
       //-----------------------------------------------------------------------------------------------
       // DO NOT WORRY ABOUT CONSERVATIVE PROBLEM
-      if (maxLink.senderAddr == m_self.ToString ()) 
+      if (maxLink.senderAddr == m_self.ToString () || m_nextSendingSlot == m_currentTimeslot) 
       {
         bool initialSlotTxStatus = false;
         if ( m_currentTimeslot == 0 || m_nextSendingSlot == 0)
         {
-          CollectConfilictingLinks (m_conflictingSet);
+          CollectConfilictingLinks (m_conflictingSet, m_self);
           initialSlotTxStatus = SenderComputeThePriority (m_self.ToString ());
         }
         if (m_currentTimeslot == m_nextSendingSlot || (initialSlotTxStatus == true && m_currentTimeslot == 0))
         {
           NS_ASSERT (m_conflictingSet.size () != 0);
-          CollectConfilictingLinks (m_conflictingSet);
+          CollectConfilictingLinks (m_conflictingSet, m_self);
           SenderComputeThePriority (m_self.ToString ()); //Compute for the next sending timeslot
           //Simulator::m_nodesInDataChannel.push_back (m_self.ToString());
           m_nodeActive = true; 
@@ -806,18 +848,36 @@ namespace ns3 {
       else if ( maxLink.receiverAddr == m_self.ToString ())
       {
         bool nodeStatus = false;
-        int64_t nextRxSlot = GetNextTxSlot (maxLink.linkId);
-        if ( nextRxSlot == UNDEFINED_NEXT_TX_SLOT)
+        NextTxSlotInfo nextRxSlotInfo = GetNextTxSlot (maxLink.linkId);
+        /*
+        std::cout<<m_self<<" current_slot: "<< m_currentTimeslot<<" slotFromSender: "<< nextRxSlotInfo.nextSlotFromSender<<std::endl;
+        for (std::vector<int64_t>::iterator display_it = nextRxSlotInfo.nextSlots.begin (); display_it != nextRxSlotInfo.nextSlots.end (); ++ display_it)
+        {
+          std::cout<<"\t\t\t\t"<<m_self<<" rx_slot: "<<*display_it<<std::endl;
+        }
+        */
+        if ( nextRxSlotInfo.nextSlotFromSender == UNDEFINED_NEXT_TX_SLOT || nextRxSlotInfo.beConservative == true)
         {
           nodeStatus = true;  //HERE, WE ARE TRYING TO BE CONSERVATIVE
+          //std::cout<<m_self<<" conservative!!!"<< std::endl;
         }
-        else if ( nextRxSlot == m_currentTimeslot) //it's time for @m_self to receive data packet from a sender
+        else if (find (nextRxSlotInfo.nextSlots.begin (), nextRxSlotInfo.nextSlots.end (), m_currentTimeslot) != nextRxSlotInfo.nextSlots.end () || nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot) 
+          // once there is a record which says the node should be in data channel in the current timeslot, let it in data channel;
         {
           nodeStatus = true;
-          UpdateNextRxSlot (maxLink.linkId, UNDEFINED_NEXT_TX_SLOT); // Even though we set this back to initial value, meaning undefined rx timeslot. as long as the node successfully receives a data packet in this current timeslot, this value will be re-written.
+          //std::cout<<m_self<<" normal receiving!"<<std::endl;
+          if (nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot)
+          {
+            UpdateNextRxSlot ( maxLink.linkId, UNDEFINED_NEXT_TX_SLOT, true);
+          }
+          else
+          {
+            UpdateConservativeStatus (maxLink.linkId, true); // be conservative in the future;
+          }
         }
         else
         {
+          //std::cout<<m_self<<" in control channel"<<std::endl;
           nodeStatus = false;
         }
         if (nodeStatus == true ) // as receiver
@@ -829,6 +889,7 @@ namespace ns3 {
           {
             m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
             m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
+            std::cout<<m_self<<" actually in data channel"<<std::endl;
           }
         } // failed to have the maximum priority, try to send control signal
         else if (m_controlInformation.size () != 0 )
@@ -848,7 +909,7 @@ namespace ns3 {
 
   }
 
-  void MacLow::CollectConfilictingLinks ( std::vector<int64_t> &vec)
+  void MacLow::CollectConfilictingLinks ( std::vector<int64_t> &vec, Mac48Address sender)
   {
     // This for loop was belong to @CalcPriority
     for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
@@ -858,22 +919,19 @@ namespace ns3 {
       CopyErInfoItem (it, &m_othersControlInformationCopy[indx]);
     }
 
-
-
     // clear pervious results
     vec.clear ();
-    TdmaLink linkInfo = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].selfInitiatedLink;
-    // if no link is initiated by @m_self, return;
+    TdmaLink linkInfo = Simulator::m_nodeLinkDetails[sender.GetNodeId ()].selfInitiatedLink;
+    // if no link is initiated by @sender, return;
     if ( linkInfo.linkId == 0)
     {
       return;
     }
 
-    Mac48Address sender = m_self;
     Mac48Address receiver = Mac48Address (linkInfo.receiverAddr.c_str ());
 
     // if the receiver is the broadcast addr, that also means there is no valid link initiated by the sender, return 
-    if ( receiver == Mac48Address::GetBroadcast ())
+    if ( receiver == Mac48Address::GetBroadcast () && sender == m_self)
     {
       return;
     }
@@ -881,7 +939,7 @@ namespace ns3 {
     // we set the data packet receiver address here. Later when we need to generate data packet to send at the mac layer,
     // we need this m_dataReceiverAddr
     // Note, this @m_dataReceiverAddr will not change during simulations, at least, according to our current settings. 12/26/2012
-    if ( m_dataReceiverAddr == Mac48Address::GetBroadcast ())
+    if ( m_dataReceiverAddr == Mac48Address::GetBroadcast () && sender == m_self)
     {
       m_dataReceiverAddr = receiver;
     }
@@ -1059,7 +1117,25 @@ namespace ns3 {
     }
     if ( linkInfo.receiverAddr == m_self.ToString ())
     {
-      UpdateNextRxSlot (linkInfo.linkId, payload.nextRxTimeslot);
+      if (imacPhy->GetChannelNumber () == DATA_CHANNEL )
+      {
+        std::cout<<m_self<<" clear local vector for sender: "<<hdr.GetAddr2 ()<<std::endl;
+        ClearNextRxSlot (linkInfo.linkId);
+        UpdateConservativeStatus (linkInfo.linkId, false); // no longer be conservative
+      }
+      UpdateNextRxSlot (linkInfo.linkId, payload.nextRxTimeslot, true); // from sender
+    }
+    for (std::vector<NextRxSlotInfo>::iterator it = payload.rxVec.begin (); it != payload.rxVec.end (); ++ it)
+    {
+      if (it->linkId / Simulator::NodesCountUpperBound == m_self.GetNodeId ())
+      {
+        if (it->nextSlot < m_nextSendingSlot && it->nextSlot > m_currentTimeslot)
+        {
+          m_nextSendingSlot = it->nextSlot;
+          std::cout<<m_self<<" update next sending slot: "<<it->nextSlot<<" msg from: "<<hdr.GetAddr2 () << std::endl;
+        }
+      }
+      //UpdateNextRxSlot (it->linkId, it->nextSlot, false);// from receiver
     }
     for (std::vector<ErInfoItem>::iterator _it = payload.vec.begin (); _it != payload.vec.end (); ++ _it)
     {
@@ -1175,6 +1251,12 @@ namespace ns3 {
 
       //Simulator::ReceiverRegisterControlReliability (hdr.GetAddr2 ().ToString (), m_self.ToString ());
     }
+    /*
+    else if (Simulator::Now () >= Simulator::LearningTimeDuration && imacPhy->GetChannelNumber () == DATA_CHANNEL && hdr.GetAddr1 () != m_self)
+    {
+      std::cout<<Simulator::Now () <<" "<<m_self<<" in data channel, the data packet is for: "<<hdr.GetAddr1 () << std::endl;
+    }
+    */
 
     //_____________________________________________________________________________________________________________________
     //                       When receiving an ACK
@@ -1647,7 +1729,7 @@ rxPacket:
         m_maxBiDirectionalErChangeInformTimes --;
       }
       m_previousSendingPower = txPower;
-      std::cout<<" transmission power for control signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
+      std::cout<<m_self<<" "<< Simulator::Now () <<" transmission power for control signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
 #endif
 #ifdef MAX_POWER_LEVEL
       uint8_t txPower = MAX_TX_POWER_LEVEL;
@@ -2526,6 +2608,7 @@ rxPacket:
           if (estimatedPdr >= m_desiredDataPdr )
           {
             payloadItem.risingAchieved = true;
+            std::cout<<m_self<<" from: "<<sender<<" rising time achieved" << std::endl;
           }
           it->ReceivedDataPacketNumbers.clear ();
           std::cout<<m_self<<" from: "<<sender<<" real segment pdr: "<< receivedCount / (double)difference << std::endl;
@@ -2787,6 +2870,24 @@ rxPacket:
     payload.ErRxFromSender = ((uint8_t)buffer[size * itemSize + 5]) == 1 ? true : false;
     uint8_t txProbability = ((uint8_t)buffer[size * itemSize + 6]);
     payload.txProbability = (double)txProbability / 256;
+    uint32_t rxSlotCount = (uint8_t)buffer[size * itemSize + 7];
+    for (uint32_t i = 0; i < rxSlotCount; ++ i)
+    {
+      uint16_t sender = 0;
+      sender = buffer[size * itemSize + 3 * i + 9] & 0x01;
+      sender <<= 8;
+      sender |= buffer[size * itemSize + 3 * i + 8];
+      int64_t nextRxSlot = 0;
+      nextRxSlot = buffer[size * itemSize + 3 * i + 10] & 0xff;
+      nextRxSlot <<= 7;
+      nextRxSlot |= (buffer[size * itemSize + 3 * i + 9] >> 1) & 0x7f;
+      NextRxSlotInfo tempInfo;
+      TdmaLink linkInfo = Simulator::m_nodeLinkDetails[sender].selfInitiatedLink;
+      tempInfo.linkId = linkInfo.linkId;
+      tempInfo.nextSlot= nextRxSlot + m_currentTimeslot;
+      //std::cout<<"from: "<<hdr.GetAddr2 ()<<" sender: "<< sender <<" slot: "<<tempInfo.nextSlot<< std::endl;
+      payload.rxVec.push_back (tempInfo);
+    }
     //std::cout<<m_self<<" payload.ErRxFromSender: "<< payload.ErRxFromSender << std::endl;
     return payload;
   }
@@ -3075,6 +3176,7 @@ rxPacket:
 
   uint8_t* MacLow::GenerateControlPayload (uint32_t max_size, uint32_t item_size, uint8_t payload[])
   {
+    std::vector<NextRxSlotInfo> rxSlotsInfo = CalcNextRxSlotAsReceiver ();
     uint32_t size_count = 0;
     int32_t maxPriorityInControlPacketPayload = 0;
 
@@ -3147,7 +3249,6 @@ rxPacket:
     payload [max_size * item_size + 2] = ((controlChannelInterferenceDbm >> 4) & 0xff);
     payload [max_size * item_size + 3] = (m_nextSendingSlot - m_currentTimeslot) & 0xff;
     payload [max_size * item_size + 4] = ((m_nextSendingSlot - m_currentTimeslot) >> 8) & 0xff;
-    //std::cout<<m_self <<" m_newErEdgeReceivedFromReceiver: "<< m_newErEdgeReceivedFromReceiver << std::endl;
     if (m_newErEdgeReceivedFromReceiver == true)
     {
       payload [max_size * item_size + 5] = 1;
@@ -3157,6 +3258,23 @@ rxPacket:
       payload [max_size * item_size + 5] = 0;
     }
     payload [max_size * item_size + 6] = (uint8_t) (m_selfSendingProbability * 256); // 1 byte for tx_probability;
+    uint8_t receiverComputedNextRxSlots = rxSlotsInfo.size ();
+    payload [max_size * item_size + 7] = receiverComputedNextRxSlots;
+    int32_t i = 0;
+    for (std::vector<NextRxSlotInfo>::iterator it = rxSlotsInfo.begin (); it != rxSlotsInfo.end (); ++ it)
+    {
+      int16_t sender = it->linkId / Simulator::NodesCountUpperBound;
+      payload [max_size * item_size + 8 + i] = sender & 0xff;  // i = 1;
+      payload [max_size * item_size + 8 + i + 1] = (sender >> 8) & 0x01;  // i = 2;
+      payload [max_size * item_size + 8 + i + 1] |= ((it->nextSlot - m_currentTimeslot) & 0x7f) << 1;// 7 bits;
+      payload [max_size * item_size + 8 + i + 2] = ((it->nextSlot - m_currentTimeslot) >> 7) & 0xff; // 8 bits;
+      //int64_t test = 0;
+      //test = payload [max_size * item_size + 8 + i + 2];
+      //test <<= 7;
+      //test |= (payload [max_size * item_size + 8 + i + 1] >> 1) &0x7f;
+      //std::cout<<"source: "<<m_self<<" sender: "<< sender <<" slot: "<<test + m_currentTimeslot<< std::endl;
+      i += 3;
+    }
     ptr = NULL;
     return payload;
   }
@@ -3205,6 +3323,7 @@ rxPacket:
   }
   void MacLow::GenerateDataPacketAndSend ()
   {  
+    //std::cout<<m_self<<" sending packets!!!"<<std::endl;
     NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
     //std::cout<<Simulator::Now () <<" "<<m_self<<" queue_size: "<< m_packetQueue.size () << std::endl;
     if ( m_packetQueue.size () > 0 ) // if there are no packets to send, just return;
@@ -3748,8 +3867,71 @@ rxPacket:
     }
   }
 
+  std::vector<NextRxSlotInfo> MacLow::CalcNextRxSlotAsReceiver ()
+  {
+    std::vector<NextRxSlotInfo> retVec;
+    std::vector<TdmaLink> selfRelatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks; 
+    for (std::vector<TdmaLink>::iterator it = selfRelatedLinks.begin (); it != selfRelatedLinks.end (); ++ it)
+    {
+      if ( it->senderAddr == m_self.ToString ())
+      {
+        continue;
+      }
+      else // Calculate Next RX slot
+      {
+        Mac48Address sender = Mac48Address (it->senderAddr.c_str ());
+        CollectConfilictingLinks (m_conflictingSet, sender);
+        int64_t nextRxSlot = ComputeNextRxSlot (sender);
+        if (nextRxSlot == m_currentTimeslot)
+        {
+          continue;
+        }
+        NextTxSlotInfo nextTxSlotInfo = GetNextTxSlot (it->linkId);
+        //Only when receiver found itself can receive data before the scheduled slot, record that information
+        if ( find (nextTxSlotInfo.nextSlots.begin (), nextTxSlotInfo.nextSlots.end (), nextRxSlot) == nextTxSlotInfo.nextSlots.end ())
+        {
+          UpdateNextRxSlot(it->linkId, nextRxSlot, false);
+          std::cout<<m_self<<" add to vector, slot: "<<nextRxSlot<<std::endl;
+          //nextTxSlotInfo.nextSlots.push_back (nextRxSlot);
+          NextRxSlotInfo rxInfo;
+          rxInfo.linkId = nextTxSlotInfo.linkId;
+          rxInfo.nextSlot = nextRxSlot;
+          retVec.push_back (rxInfo);
+        }
+      }
+    }
+    return retVec;
+  }
+  int64_t MacLow::ComputeNextRxSlot (Mac48Address addr)
+  {
+    if (m_conflictingSet.size () == 0)
+    {
+      return false; // the node is not a sender, CONSERVATIVE? later to consider
+    }
+    // the linkId won't be 0
+    TdmaLink linkInfo = Simulator::m_nodeLinkDetails[addr.GetNodeId ()].selfInitiatedLink;
+    for (int64_t slot = m_currentTimeslot; ; ++slot)
+    {
+      int64_t selfPriority = DoCalculatePriority (linkInfo.linkId, slot);
+      bool selfMax = true;
+      //int64_t maxPriority = 0;
+      //int64_t maxPriorityLinkId = 0;
+      for (std::vector<int64_t>::iterator it = m_conflictingSet.begin (); it != m_conflictingSet.end (); ++ it)
+      {
+        if (*it != linkInfo.linkId && DoCalculatePriority (*it, slot) >= selfPriority)
+        {
+          selfMax = false;
+          break;
+          //maxPriority = DoCalculatePriority (*it, slot);
+          //maxPriorityLinkId = *it;
+        }
+      }
+      //if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
+      if (selfMax == true ) 
+      {
+        return slot;
+      }
+    }
+    return m_currentTimeslot;
+  }
 } // namespace ns3
-
-
-
-

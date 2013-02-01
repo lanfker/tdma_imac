@@ -162,7 +162,7 @@ const double DEFAULT_TX_PROBABILITY = 1;
 const uint32_t INFO_ITEM_SUM = 3000;
 const uint32_t QUEUE_SIZE = 1000;
 const double DEFAULT_PACKET_GENERATION_PROBABILITY = 1;
-const int64_t UNDEFINED_NEXT_TX_SLOT = -1;
+const int64_t UNDEFINED_NEXT_TX_SLOT = 32768;
 
 
 //-----------------------CONTROLLER --------------------------------
