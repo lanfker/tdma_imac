@@ -2999,7 +2999,7 @@ rxPacket:
   std::vector<ErInfoItem> MacLow::SelectErInfoItemsToTransmit (uint32_t totalSize )
   {
     int32_t selfPriority = 0, othersPriority = 0;
-    uint32_t itemSentCountInOthers = 0;
+    //uint32_t itemSentCountInOthers = 0;
     m_informingRange = IMPOSSIBLE_ER;
     std::vector<ErInfoItem>::iterator selfIter = m_controlInformation.begin ();
     std::vector<ErInfoItem>::iterator othersIter = m_othersControlInformation.begin ();
@@ -3114,10 +3114,12 @@ rxPacket:
             {
               temp.itemPriority  -= 1;
             }
+            /*
             ErInfoItem tempItem = *othersIter;
             *othersIter = m_othersControlInformation[itemSentCountInOthers];
             m_othersControlInformation[itemSentCountInOthers] = tempItem; //move the sent item to the front of the vector, later, we calculate their position in the vector to realize the round-robin mechanism
             itemSentCountInOthers += 1;
+            */
             break;
           }
         }
@@ -3142,8 +3144,20 @@ rxPacket:
 
     // only when send out a control message, sort the vector
     //sort (m_othersControlInformation.begin (), m_othersControlInformation.end (), ErInfoItemCompare);
+    for (uint32_t i = 0; i < itemsSentInOthers.size (); ++ i)
+    {
+      for (std::vector<ErInfoItem>::iterator rm_it = m_othersControlInformation.begin (); rm_it != m_othersControlInformation.end (); ++ rm_it)
+      {
+        if (rm_it->itemId == itemsSentInOthers[i].itemId)
+        {
+          m_othersControlInformation.erase (rm_it);
+          break;
+        }
+      }
+    }
     for (std::vector<ErInfoItem>::iterator it = itemsSentInOthers.begin (); it != itemsSentInOthers.end (); ++ it)
     {
+      /*
       // find the sent item one by one, delete them from the original vector,
       for (std::vector<ErInfoItem>::iterator sub_it = m_othersControlInformation.begin (); sub_it != m_othersControlInformation.end (); ++ sub_it)
       {
@@ -3153,6 +3167,7 @@ rxPacket:
           break;
         }
       }
+      */
       // insert the sent items in the right place
       if ( m_othersControlInformation.size () == 0 || (m_othersControlInformation.end () -1)->itemPriority >= it->itemPriority)
       {
