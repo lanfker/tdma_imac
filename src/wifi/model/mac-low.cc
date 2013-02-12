@@ -889,7 +889,7 @@ namespace ns3 {
           {
             m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
             m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
-            std::cout<<m_self<<" actually in data channel"<<std::endl;
+            //std::cout<<m_self<<" actually in data channel"<<std::endl;
           }
         } // failed to have the maximum priority, try to send control signal
         else if (m_controlInformation.size () != 0 )
@@ -931,7 +931,8 @@ namespace ns3 {
     Mac48Address receiver = Mac48Address (linkInfo.receiverAddr.c_str ());
 
     // if the receiver is the broadcast addr, that also means there is no valid link initiated by the sender, return 
-    if ( receiver == Mac48Address::GetBroadcast () && sender == m_self)
+    //if ( receiver == Mac48Address::GetBroadcast () && sender == m_self)
+    if ( receiver == Mac48Address::GetBroadcast ())
     {
       return;
     }
@@ -1119,7 +1120,7 @@ namespace ns3 {
     {
       if (imacPhy->GetChannelNumber () == DATA_CHANNEL )
       {
-        std::cout<<m_self<<" clear local vector for sender: "<<hdr.GetAddr2 ()<<std::endl;
+        //std::cout<<m_self<<" clear local vector for sender: "<<hdr.GetAddr2 ()<<std::endl;
         ClearNextRxSlot (linkInfo.linkId);
         UpdateConservativeStatus (linkInfo.linkId, false); // no longer be conservative
       }
@@ -1132,7 +1133,7 @@ namespace ns3 {
         if (it->nextSlot < m_nextSendingSlot && it->nextSlot > m_currentTimeslot)
         {
           m_nextSendingSlot = it->nextSlot;
-          std::cout<<m_self<<" update next sending slot: "<<it->nextSlot<<" msg from: "<<hdr.GetAddr2 () << std::endl;
+          //std::cout<<m_self<<" update next sending slot: "<<it->nextSlot<<" msg from: "<<hdr.GetAddr2 () << std::endl;
         }
       }
       //UpdateNextRxSlot (it->linkId, it->nextSlot, false);// from receiver
@@ -2605,7 +2606,7 @@ rxPacket:
             it->DataPdr = receivedCount / (double)difference;
           }
           estimatedPdr = receivedCount / (double) difference;
-          if (estimatedPdr >= m_desiredDataPdr )
+          if (estimatedPdr >= m_desiredDataPdr && payloadItem.risingAchieved == false)
           {
             payloadItem.risingAchieved = true;
             std::cout<<m_self<<" from: "<<sender<<" rising time achieved" << std::endl;
@@ -3906,7 +3907,7 @@ rxPacket:
         if ( find (nextTxSlotInfo.nextSlots.begin (), nextTxSlotInfo.nextSlots.end (), nextRxSlot) == nextTxSlotInfo.nextSlots.end ())
         {
           UpdateNextRxSlot(it->linkId, nextRxSlot, false);
-          std::cout<<m_self<<" add to vector, slot: "<<nextRxSlot<<std::endl;
+          //std::cout<<m_self<<" add to vector, slot: "<<nextRxSlot<<std::endl;
           //nextTxSlotInfo.nextSlots.push_back (nextRxSlot);
           NextRxSlotInfo rxInfo;
           rxInfo.linkId = nextTxSlotInfo.linkId;
@@ -3924,6 +3925,7 @@ rxPacket:
       return false; // the node is not a sender, CONSERVATIVE? later to consider
     }
     // the linkId won't be 0
+    //std::cout<<m_self<<" as receiver, conflicting size: "<< m_conflictingSet.size ()<<" sender is: "<< addr << std::endl;
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[addr.GetNodeId ()].selfInitiatedLink;
     for (int64_t slot = m_currentTimeslot; ; ++slot)
     {
@@ -3942,7 +3944,7 @@ rxPacket:
         }
       }
       //if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
-      if (selfMax == true ) 
+      if (selfMax == true && slot != m_currentTimeslot) 
       {
         return slot;
       }
