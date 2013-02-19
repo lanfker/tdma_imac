@@ -680,7 +680,8 @@ namespace ns3 {
       NextTxSlotInfo info;
       info.linkId = it->linkId;
       info.nextSlotFromSender = UNDEFINED_NEXT_TX_SLOT;
-      info.nextSlots.push_back (UNDEFINED_NEXT_TX_SLOT);
+      info.nextSlotFromSelf = UNDEFINED_NEXT_TX_SLOT;
+      //info.nextSlots.push_back (UNDEFINED_NEXT_TX_SLOT);
       m_nextTxSlotInfo.push_back (info);
     }
   }
@@ -699,6 +700,7 @@ namespace ns3 {
     NextTxSlotInfo nullInfo;
     nullInfo.linkId = 0;
     nullInfo.nextSlotFromSender = UNDEFINED_NEXT_TX_SLOT;
+    nullInfo.nextSlotFromSelf = UNDEFINED_NEXT_TX_SLOT;
     return nullInfo; // this sentence should never be executed.
   }
 
@@ -725,10 +727,16 @@ namespace ns3 {
         {
           it->nextSlotFromSender = nextRxSlot;
         }
+        if (fromSender == false )
+        {
+          it->nextSlotFromSelf = nextRxSlot;
+        }
+        /*
         else if ( find (it->nextSlots.begin (),it->nextSlots.end (), nextRxSlot ) == it->nextSlots.end ())
         {
           it->nextSlots.push_back (nextRxSlot);
         }
+        */
       }
     }
   }
@@ -739,7 +747,8 @@ namespace ns3 {
     {
       if (it->linkId == linkId)
       {
-        it->nextSlots.clear ();
+        it->nextSlotFromSelf = UNDEFINED_NEXT_TX_SLOT;
+        //it->nextSlots.clear ();
       }
     }
   }
@@ -849,19 +858,12 @@ namespace ns3 {
       {
         bool nodeStatus = false;
         NextTxSlotInfo nextRxSlotInfo = GetNextTxSlot (maxLink.linkId);
-        /*
-        std::cout<<m_self<<" current_slot: "<< m_currentTimeslot<<" slotFromSender: "<< nextRxSlotInfo.nextSlotFromSender<<std::endl;
-        for (std::vector<int64_t>::iterator display_it = nextRxSlotInfo.nextSlots.begin (); display_it != nextRxSlotInfo.nextSlots.end (); ++ display_it)
-        {
-          std::cout<<"\t\t\t\t"<<m_self<<" rx_slot: "<<*display_it<<std::endl;
-        }
-        */
         if ( nextRxSlotInfo.nextSlotFromSender == UNDEFINED_NEXT_TX_SLOT || nextRxSlotInfo.beConservative == true)
         {
           nodeStatus = true;  //HERE, WE ARE TRYING TO BE CONSERVATIVE
-          //std::cout<<m_self<<" conservative!!!"<< std::endl;
         }
-        else if (find (nextRxSlotInfo.nextSlots.begin (), nextRxSlotInfo.nextSlots.end (), m_currentTimeslot) != nextRxSlotInfo.nextSlots.end () || nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot) 
+        //else if (find (nextRxSlotInfo.nextSlots.begin (), nextRxSlotInfo.nextSlots.end (), m_currentTimeslot) != nextRxSlotInfo.nextSlots.end () || nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot) 
+        else if (nextRxSlotInfo.nextSlotFromSelf <= m_currentTimeslot || nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot) 
           // once there is a record which says the node should be in data channel in the current timeslot, let it in data channel;
         {
           nodeStatus = true;
@@ -3889,7 +3891,8 @@ rxPacket:
     std::vector<TdmaLink> selfRelatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks; 
     for (std::vector<TdmaLink>::iterator it = selfRelatedLinks.begin (); it != selfRelatedLinks.end (); ++ it)
     {
-      if ( it->senderAddr == m_self.ToString ())
+      if ( it->senderAddr == m_self.ToString ()) 
+      // here we are considering @m_self as a receiver, so we ignore the situation when it is a sender.
       {
         continue;
       }
@@ -3898,22 +3901,21 @@ rxPacket:
         Mac48Address sender = Mac48Address (it->senderAddr.c_str ());
         CollectConfilictingLinks (m_conflictingSet, sender);
         int64_t nextRxSlot = ComputeNextRxSlot (sender);
+        NextTxSlotInfo nextTxSlotInfo = GetNextTxSlot (it->linkId);
         if (nextRxSlot == m_currentTimeslot)
         {
           continue;
         }
-        NextTxSlotInfo nextTxSlotInfo = GetNextTxSlot (it->linkId);
         //Only when receiver found itself can receive data before the scheduled slot, record that information
-        if ( find (nextTxSlotInfo.nextSlots.begin (), nextTxSlotInfo.nextSlots.end (), nextRxSlot) == nextTxSlotInfo.nextSlots.end ())
+        //if ( find (nextTxSlotInfo.nextSlots.begin (), nextTxSlotInfo.nextSlots.end (), nextRxSlot) == nextTxSlotInfo.nextSlots.end ())
+        if (nextTxSlotInfo.nextSlotFromSelf > nextRxSlot )
         {
           UpdateNextRxSlot(it->linkId, nextRxSlot, false);
-          //std::cout<<m_self<<" add to vector, slot: "<<nextRxSlot<<std::endl;
-          //nextTxSlotInfo.nextSlots.push_back (nextRxSlot);
-          NextRxSlotInfo rxInfo;
-          rxInfo.linkId = nextTxSlotInfo.linkId;
-          rxInfo.nextSlot = nextRxSlot;
-          retVec.push_back (rxInfo);
         }
+        NextRxSlotInfo rxInfo;
+        rxInfo.linkId = nextTxSlotInfo.linkId;
+        rxInfo.nextSlot = nextTxSlotInfo.nextSlotFromSelf;
+        retVec.push_back (rxInfo);
       }
     }
     return retVec;

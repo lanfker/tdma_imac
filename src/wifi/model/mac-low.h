@@ -58,7 +58,8 @@ namespace ns3 {
   typedef struct NextTxSlotInfo //This is for the case when @m_self is the receiver
   {
     int64_t linkId;
-    std::vector<int64_t> nextSlots;
+    int64_t nextSlotFromSelf; //Calculated as a receiver;
+    //std::vector<int64_t> nextSlots;
     int64_t nextSlotFromSender;
     bool beConservative;
   } NextTxSlotInfo;
