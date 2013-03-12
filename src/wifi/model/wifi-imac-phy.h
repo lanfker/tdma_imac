@@ -215,7 +215,7 @@ namespace ns3 {
       double GetCurrentReceivedPower () const;
 
       double GetTransmissionPowerDbm (double maxInterference);
-      uint32_t GetErSize (double maxInterferenceW) const;
+      uint32_t GetErSize (double maxInterferenceW) ;
 
       void SendPacket (Ptr<const Packet> packet, WifiMode mode, enum WifiPreamble preamble, double txPower);
       /* 
@@ -224,6 +224,9 @@ namespace ns3 {
       struct Compare {
         bool operator () (Ptr<SignalMap> a, Ptr<SignalMap> b) { return a->inBoundAttenuation < b->inBoundAttenuation; }
       } myCompare;
+      struct InterferenceCompare {
+        bool operator () (Ptr<SignalMap> a, Ptr<SignalMap> b) { return a->supposedInterferenceW > b->supposedInterferenceW;}
+      } myInterferenceCompare;
 
       struct SinrCompare {
         bool operator () (Ptr<SignalMap> a, Ptr<SignalMap> b) { return a->outSinr > b->outSinr; }
@@ -256,6 +259,8 @@ namespace ns3 {
       Mac48Address GetAddress ();
       double GetRxPowerDbm () const;
       void SetThresholdSnr (double snr);
+      double GetLinkDistance (Mac48Address sender, Mac48Address receiver );
+      double GetPowerDbmWithFixedSnr (Mac48Address sender, Mac48Address receiver , double snr=8.9370);
       /********************************************************PRIVATE**********************************************************/
     private:
       WifiImacPhy (const WifiImacPhy &o);

@@ -40,6 +40,8 @@ const uint32_t LEARNING_PROCESS_DURATION = 200;
 const uint32_t SIMULATION_STOP_TIME = 3000;
 const uint32_t NODE_COUNT_UPPER_BOUND = 1000;
 const uint32_t MIN_INFORM_RANGE = 20;
+const double REFERENCE_DISTANCE = 1.0;
+const double REFERENCE_LOSS = 46.6777;
 class SimulatorImpl;
 class Scheduler;
 

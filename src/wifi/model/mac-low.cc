@@ -701,6 +701,7 @@ namespace ns3 {
     nullInfo.linkId = 0;
     nullInfo.nextSlotFromSender = UNDEFINED_NEXT_TX_SLOT;
     nullInfo.nextSlotFromSelf = UNDEFINED_NEXT_TX_SLOT;
+    nullInfo.beConservative  = false;
     return nullInfo; // this sentence should never be executed.
   }
 
@@ -764,12 +765,6 @@ namespace ns3 {
    */
   void MacLow::CalcPriority ()
   {
-    /*
-    if (m_nextSendingSlot < m_currentTimeslot)
-    {
-      std::cout<<m_self<<" next sending slot less than current timeslot! "<<std::endl;
-    }
-    */
     int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
     m_currentTimeslot = currentSlot;
     IncreaseSlotCount ();
@@ -1135,7 +1130,6 @@ namespace ns3 {
         if (it->nextSlot < m_nextSendingSlot && it->nextSlot > m_currentTimeslot)
         {
           m_nextSendingSlot = it->nextSlot;
-          //std::cout<<m_self<<" update next sending slot: "<<it->nextSlot<<" msg from: "<<hdr.GetAddr2 () << std::endl;
         }
       }
       //UpdateNextRxSlot (it->linkId, it->nextSlot, false);// from receiver
@@ -1268,6 +1262,7 @@ namespace ns3 {
         && hdr.GetAddr1 () == m_self
         && m_txParams.MustWaitAck () && imacPhy->GetChannelNumber () == DATA_CHANNEL) // ack received from the data channel
     {
+      // packet size: 18, header size: 10, payload size: 4.
       NS_LOG_DEBUG ("receive ack from=" << m_currentHdr.GetAddr1 ());
       if ( m_newErEdgeReceivedFromReceiver == true)
       {
@@ -1278,7 +1273,17 @@ namespace ns3 {
       // ack, for me, after learning process, in data channel
       if (packet->FindFirstMatchingByteTag ( receiverAddress) && Simulator::Now () >= Simulator::LearningTimeDuration)
       {
+        uint8_t buffer[4];
+        packet->CopyData (buffer, 4);
+
         Mac48Address ackSenderAddress = receiverAddress.Get ();
+        TdmaLink linkInfo = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].selfInitiatedLink;
+        int64_t nextSlotFromReceiver = 0;
+        nextSlotFromReceiver = buffer [1];
+        nextSlotFromReceiver <<= 8;
+        nextSlotFromReceiver |= buffer [0];
+        nextSlotFromReceiver += m_currentTimeslot;
+        UpdateNextRxSlot (linkInfo.linkId,nextSlotFromReceiver , false);
         std::cout<<"4: "<<Simulator::Now ()<<" ack from " << ackSenderAddress << " to "<<m_self <<" is received" <<std::endl;
         AckSequenceNoTag ackSequenceNoTag; 
         /*  //DISABLE ACK ER AND ACK PDR 
@@ -1398,6 +1403,7 @@ namespace ns3 {
         NS_LOG_DEBUG ("rx unicast/sendAck from=" << hdr.GetAddr2 ());
         NS_ASSERT (m_sendAckEvent.IsExpired ());
         //m_sendAckEvent = Simulator::Schedule (GetSifs (), &MacLow::SendAckAfterData, this, hdr.GetAddr2 (), hdr.GetDuration (), txMode, rxSnr);
+
         m_sendAckEvent = Simulator::Schedule (NanoSeconds (1), &MacLow::SendAckAfterData, this, hdr.GetAddr2 (), hdr.GetDuration (), txMode, rxSnr);
       }
       goto rxPacket;
@@ -1665,23 +1671,46 @@ rxPacket:
         ", mode=" << txMode <<
         ", duration=" << hdr->GetDuration () <<
         ", seq=0x" << std::hex << m_currentHdr.GetSequenceControl () << std::dec);
+
+    Ptr<WifiImacPhy> imacPhy = m_phy->GetObject<WifiImacPhy> ();
     if ( m_initialErEdgeInterferenceW != 0) // has been set according to calculation in the PHY layer
     {
       InterferenceTag interferenceTag;
       interferenceTag.Set (m_initialErEdgeInterferenceW);
       packet->AddByteTag (interferenceTag);
     }
-    if (Simulator::Now () <= Simulator::LearningTimeDuration || m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL)
+    if (Simulator::Now () <= Simulator::LearningTimeDuration )
+    {
+        imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (uint8_t)0); 
+    }
+    if (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL)
       //Please notice that when the condition (Simulator::Now () <= Simulator::LearningTimeDuration) is satisfied, we are using the  maximum transmission power. 
     {
-      m_phy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (uint8_t)0); 
+      if (hdr->IsData () )
+      {
+        double tx_power = imacPhy-> GetPowerDbmWithFixedSnr (hdr->GetAddr2 (), hdr->GetAddr1 ());
+        if ( Simulator::Now () >= Simulator::LearningTimeDuration )
+        {
+          Ptr<SignalMap> signalMapItem = imacPhy->GetSignalMapItem (hdr->GetAddr1 ());
+          std::cout<<m_self<< " data_packet tx_power: "<< tx_power<<" sender: "<< hdr->GetAddr2 () <<" receiver: "<< hdr->GetAddr1 () <<" singalMap.snr: "<< signalMapItem->inSinr << std::endl;
+        }
+        imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
+      }
+      else if (hdr->IsAck ())
+      {
+        double tx_power = imacPhy-> GetPowerDbmWithFixedSnr (hdr->GetAddr1 (), m_self);
+        if ( Simulator::Now () >= Simulator::LearningTimeDuration )
+        {
+          std::cout<<m_self<< "ack_packet tx_power: "<< tx_power<<" sender: "<< m_self <<" receiver: "<< hdr->GetAddr1 () << std::endl;
+        }
+        imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
+      }
     }
     else if (Simulator::Now () > Simulator::LearningTimeDuration && m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == CONTROL_CHANNEL)
     {
 #ifdef POWER_CONTROL
       double txPower = NORMAL_TX_POWER;
       double maxNI = 0;
-      Ptr<WifiImacPhy> imacPhy = m_phy->GetObject<WifiImacPhy> ();
       std::vector<std::string> nodesInEr = Simulator::ListNodesInEr (m_self.ToString (), m_informingRange);
       if (nodesInEr.size () < Simulator::MinInformRange)
       {
@@ -1708,7 +1737,7 @@ rxPacket:
 
         for (std::vector<std::string>::iterator _it = nodesNeedToCheck.begin (); _it != nodesNeedToCheck.end (); ++ _it)
         {
-          Ptr<SignalMap> signalMapItem = imacPhy->GetSignalMapItem (_it->c_str ());
+          Ptr<SignalMap> signalMapItem = imacPhy->GetSignalMapItem (Mac48Address (_it->c_str ()));
           if (signalMapItem == 0)
           {
             continue;
@@ -2070,12 +2099,18 @@ rxPacket:
     NS_LOG_DEBUG ("fast Ack busy but missed");
   }
 
+  /* Source is the node who sends out the packet
+   */
   void MacLow::SendAckAfterData (Mac48Address source, Time duration, WifiMode dataTxMode, double dataSnr)
   {
     NS_LOG_FUNCTION (this);
     /* send an ACK when you receive
      * a packet after SIFS.
      */
+
+    CollectConfilictingLinks (m_conflictingSet, source);
+    int64_t nextRxSlot = ComputeNextRxSlot (source);
+
     WifiMode ackTxMode = GetAckTxModeForData (source, dataTxMode);
     WifiMacHeader ack;
     ack.SetType (WIFI_MAC_CTL_ACK);
@@ -2095,7 +2130,12 @@ rxPacket:
     NS_ASSERT (duration >= MicroSeconds (0));
     ack.SetDuration (duration);
 
-    Ptr<Packet> packet = Create<Packet> ();
+
+    uint8_t payload[4];// ACK payload length
+    payload[0] = (nextRxSlot - m_currentTimeslot) & 0xff;
+    payload[1] = ((nextRxSlot - m_currentTimeslot) >> 8 ) & 0xff;
+    Ptr<Packet> packet = Create<Packet> (payload, 4);
+
     packet->AddHeader (ack);
     WifiMacTrailer fcs;
     packet->AddTrailer (fcs);
@@ -2630,7 +2670,7 @@ rxPacket:
           Ptr<WifiImacPhy> tempPhy = m_phy->GetObject<WifiImacPhy> ();
           Ptr<SignalMap> signalMapItem = tempPhy->GetSignalMapItem (sender);
           it->DataInterferenceW = tempPhy->ComputeInterferenceWhenReceivingData ();
-          //double supposedReceivePowerDbm = tempPhy->GetPowerDbmByLevel (0) + tempPhy->GetTxGain () - signalMapItem->outBoundAttenuation;
+
           tempPhy->ComputeSampledInterferenceW ();
           bool conditionTwoMeet = false;
           double expectedInterferenceDbm = 0;
@@ -2688,7 +2728,11 @@ rxPacket:
 #ifdef P_CONTROLLER_REFERENCE_I
           double currentNplusI = tempPhy->WToDbm (it->DataInterferenceW + tempPhy->GetCurrentNoiseW ());
 
+#ifndef TX_POWER_HETEROGENEITY
           double supposedRxPowerDbm = tempPhy->GetPowerDbmByLevel (0) + tempPhy->GetTxGain () - signalMapItem->inBoundAttenuation;
+#else
+          double supposedRxPowerDbm = tempPhy->GetPowerDbmWithFixedSnr (signalMapItem->from, m_self) + tempPhy->GetTxGain () - signalMapItem->inBoundAttenuation;
+#endif
           deltaInterferenceDb = m_pControllerWithReferenceInterference.GetDeltaInterference (supposedRxPowerDbm, m_desiredDataPdr, currentNplusI);
           expectedInterferenceDbm = tempPhy->WToDbm (it->DataInterferenceW + tempPhy->GetCurrentNoiseW ()) + deltaInterferenceDb;
           expectedInterferenceWatt = tempPhy->DbmToW (expectedInterferenceDbm);

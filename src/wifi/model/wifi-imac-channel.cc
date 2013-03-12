@@ -62,6 +62,12 @@ void
 WifiImacChannel::Send (Ptr<WifiImacPhy> sender, Ptr<const Packet> packet, double txPowerDbm,
                        WifiMode wifiMode, WifiPreamble preamble) const
 {
+  /*
+  if (Simulator::Now () < Simulator::LearningTimeDuration )
+  {
+    std::cout<<Simulator::Now ()<<" txPowerDbm: "<<txPowerDbm << std::endl;
+  }
+  */
   Ptr<MobilityModel> senderMobility = sender->GetMobility ()->GetObject<MobilityModel> ();
 
 
@@ -119,7 +125,6 @@ WifiImacChannel::GetDistanceBetweenNodes(Mac48Address src, Mac48Address dest) co
   Ptr<MobilityModel> senderMobility = NULL;
   Ptr<MobilityModel> receiverMobility = NULL;
 
-  //std::cout<<"\nsrc: "<<src<<" src.id: "<< src.GetNodeId ()<<" dest: "<<dest <<" dest.id: "<< dest.GetNodeId () << std::endl;
   senderMobility = m_phyList[ src.GetNodeId () - 1]->GetMobility ()->GetObject<MobilityModel> ();
   receiverMobility = m_phyList[ dest.GetNodeId () - 1]->GetMobility ()->GetObject<MobilityModel> ();
   if( senderMobility != NULL && receiverMobility != NULL )

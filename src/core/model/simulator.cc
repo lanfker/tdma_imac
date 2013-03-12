@@ -343,6 +343,7 @@ namespace ns3 {
             _it->outSinr = outSinr;
             _it->inSinr = inSinr;
             _it->noisePlusInterferenceW = noisePlusInterferenceW;
+            _it->supposedInterferenceW = supposedInterferenceW;
             return;
           }
           // if there is no record regarding this neighbor, insert the beighbor's information into the vector

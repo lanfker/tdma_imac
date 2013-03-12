@@ -530,6 +530,9 @@ switchChannel:
     //if no record has been found in the signal map, return 0
     return 0;
   }
+
+  /* 
+   */
   Ptr<SignalMap> WifiImacPhy::GetSignalMapItem (Mac48Address addr) const
   {
     Ptr<SignalMap> returnItem ;
@@ -555,6 +558,21 @@ switchChannel:
   {	
 
     item->outSinr = item->inSinr = GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () - item->inBoundAttenuation - WToDbm (noise);
+    //std::cout<<" calculated snr: "<< item->outSinr << std::endl;
+    /*
+    if (item->outSinr < 0)
+    {
+      std::cout<<" tx: "<<GetPowerDbm (DATA_TX_POWER_LEVEL)  <<" atten: "<< item->inBoundAttenuation <<" noise: "<< WToDbm (noise) << std::endl;
+    }
+    */
+    /*
+#ifndef TX_POWER_HETEROGENEITY
+    item->outSinr = item->inSinr = GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () - item->inBoundAttenuation - WToDbm (noise);
+#else
+    item->outSinr = GetPowerDbmWithFixedSnr (m_self, item->from ) + GetTxGain () - item->inBoundAttenuation - WToDbm (noise);
+    item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - item->inBoundAttenuation - WToDbm (noise);
+#endif 
+*/
     if (item->inSinr < 0)
     {
       item->inSinr = item->outSinr = 0; // for those node that has the snr less than 0, we won't choose those nodes.
@@ -581,7 +599,11 @@ switchChannel:
         (*it)->inSinr = item->inSinr;
         (*it)->outSinr = item->outSinr;
         (*it)->supposedInterferenceW = item->supposedInterferenceW;
+#ifndef TX_POWER_HETEROGENEITY
         sort (m_signalMap.begin (), m_signalMap.end (), myCompare);
+#else
+        sort (m_signalMap.begin (), m_signalMap.end (), myInterferenceCompare);
+#endif
         NotifySignalMapChange();
         return;
       }
@@ -604,7 +626,11 @@ switchChannel:
     {
       m_signalMap.push_back(item);
     }
+#ifndef TX_POWER_HETEROGENEITY
     sort (m_signalMap.begin (), m_signalMap.end (), myCompare);
+#else
+    sort (m_signalMap.begin (), m_signalMap.end (), myInterferenceCompare);
+#endif
     NotifySignalMapChange();
 
     return;
@@ -630,7 +656,11 @@ switchChannel:
         returnAddress = (*it)->from;
       }
     }
+#ifndef TX_POWER_HETEROGENEITY
     sort (m_signalMap.begin (), m_signalMap.end (), myCompare);
+#else
+    sort (m_signalMap.begin (), m_signalMap.end (), myInterferenceCompare);
+#endif
 
     if ( returnAddress != Mac48Address::GetBroadcast())
     {
@@ -696,7 +726,11 @@ switchChannel:
         returnAddress = (*it)->from;
       }
     }
+#ifndef TX_POWER_HETEROGENEITY
     sort (m_signalMap.begin (), m_signalMap.end (), myCompare);
+#else 
+    sort (m_signalMap.begin (), m_signalMap.end (), myInterferenceCompare);
+#endif
 
     return returnAddress;
   }
@@ -739,12 +773,6 @@ switchChannel:
 
       WifiMacHeader hdr;
       packet->PeekHeader(hdr); 
-      /*
-      if ( Simulator::Now () > Simulator::LearningTimeDuration && m_self == hdr.GetAddr1 ())
-      {
-        std::cout<<"__from: "<<hdr.GetAddr2 () <<" to: "<<hdr.GetAddr1 () << " rxpower: "<< m_rxPowerDbm << std::endl;
-      }
-      */
 
       Ptr<InterferenceHelper::Event> event;
       // Register the concurrent transmitters.
@@ -841,11 +869,11 @@ switchChannel:
             //___________________________________________________________________________________________________________________________
             if (Simulator::Now () < Simulator::LearningTimeDuration && GetChannelNumber () == CONTROL_CHANNEL)
             {
-              //std::cout<<" receiving message from control channel. "<< std::endl; //working!
               Ptr<SignalMap> item = CreateObject<SignalMap> ();
               double attenuation = 0.0;
               //-----------------------Broadcast message in the learning process ----------------------------//
               attenuation = WifiImacPhy::GetPowerDbm ( m_initialPowerLevel ) + m_txGainDb - rxPowerDbm;
+              //std::cout<<Simulator::Now () <<" "<<m_self<<" atten: "<< attenuation << std::endl;
               if ( hdr.IsData () )
               {
                 item->from = hdr.GetAddr2();
@@ -863,6 +891,11 @@ switchChannel:
               item->outBoundAttenuation = item->inBoundAttenuation; //FOR symmetric channel, the out bound attenuation is the same as the inBoundAttenuation
               item->noisePlusInterferenceW = m_interference.GetNoise (); // only noise?
               item->supposedInterferenceW = DbmToW (GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () - attenuation); 
+#ifndef TX_POWER_HETEROGENEITY
+              item->supposedInterferenceW = DbmToW (GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () - attenuation); 
+#else
+              item->supposedInterferenceW = DbmToW ( GetPowerDbmWithFixedSnr (item->from, m_self) + GetTxGain () - attenuation); 
+#endif
               WifiImacPhy::SetSignalMap(item, m_interference.GetNoise ());
             }
             //_______________________________________________________________________________________________________
@@ -876,6 +909,10 @@ switchChannel:
             //_______________________________________________________________________________________________________
             else if ( Simulator::Now () >= Simulator::LearningTimeDuration && GetChannelNumber () == DATA_CHANNEL)
             {
+              if (hdr.GetAddr1 () == m_self)
+              {
+                std::cout<<m_self<<" SNR: "<< rxPowerDbm - WToDbm (GetCurrentNoiseW ())<<" rxPower: "<< rxPowerDbm<<" from: "<<hdr.GetAddr2 () << std::endl;
+              }
             }
 
             m_endRxEvent = Simulator::Schedule (rxDuration, &WifiImacPhy::EndReceive, this,
@@ -909,6 +946,10 @@ maybeCcaBusy:
 
   void WifiImacPhy::SendPacket (Ptr<const Packet> packet, WifiMode mode, enum WifiPreamble preamble, double txPower)
   {
+    if (GetChannelNumber () == CONTROL_CHANNEL && Simulator::Now () < Simulator::LearningTimeDuration)
+    {
+      txPower = m_initialPowerLevel;
+    }
     NS_LOG_FUNCTION (this << packet << txMode << preamble << txPower);
     /* Transmission can happen if:
      *  - we are syncing on a packet. It is the responsability of the
@@ -971,6 +1012,8 @@ maybeCcaBusy:
       if (Simulator::Now () < Simulator::LearningTimeDuration )
       {
         txPower = m_initialPowerLevel; // send packet in a large enough power level to enable the learning process 
+        m_channel->Send (this, pkt, GetPowerDbm ((uint8_t)txPower) + m_txGainDb, mode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
+        return;
       }
     }
     m_channel->Send (this, pkt, txPower + m_txGainDb, mode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
@@ -1042,7 +1085,6 @@ maybeCcaBusy:
         if (Simulator::Now () < Simulator::LearningTimeDuration )
         {
           txPower = m_initialPowerLevel; // send packet in a large enough power level to enable the learning process 
-          //std::cout<<" sending using: "<< GetPowerDbm (txPower) + m_txGainDb << std::endl;
         }
       }
       m_channel->Send (this, pkt, GetPowerDbm (txPower) + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
@@ -1379,13 +1421,18 @@ maybeCcaBusy:
   }
 
 
-  uint32_t WifiImacPhy::GetErSize (double maxInterferenceW) const
+  uint32_t WifiImacPhy::GetErSize (double minInterferenceW) 
   {
     uint32_t erSize = 0;
-    double attenuation = GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () -  WToDbm(maxInterferenceW);  // the attenuation from the node at the edge of the ER region to the target node. Note that the maxInterferenceDbm is less than the m_edThresholdW. Therefore, we should increase the power level to send control message to guarantee that the nodes around the edge of the region could correctly receive the control packet.
+    //double attenuation = GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () -  WToDbm(minInterferenceW);  // the attenuation from the node at the edge of the ER region to the target node. Note that the maxInterferenceDbm is less than the m_edThresholdW. Therefore, we should increase the power level to send control message to guarantee that the nodes around the edge of the region could correctly receive the control packet.
     for (std::vector<Ptr<SignalMap> >::const_iterator it = m_signalMap.begin (); it != m_signalMap.end (); ++ it)
     {
-      if ((*it)->outBoundAttenuation <= attenuation ) //the nodes satisfy this condition is within the ER region
+#ifndef TX_POWER_HETEROGENEITY
+      double interferenceDbm = GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () - (*it)->inBoundAttenuation;
+#else
+      double interferenceDbm = GetPowerDbmWithFixedSnr ( (*it)->from, m_self) + GetTxGain () - (*it)->inBoundAttenuation;
+#endif
+      if (minInterferenceW <= DbmToW (interferenceDbm)) //the nodes satisfy this condition is within the ER region
       {
         erSize ++;
       }
@@ -1446,7 +1493,11 @@ maybeCcaBusy:
     {
       for (vector<Ptr<SignalMap> >::const_iterator it = m_signalMap.begin (); it != m_signalMap.end (); ++ it)
       {
+#ifndef TX_POWER_HETEROGENEITY
         double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*it)->inBoundAttenuation; //dBm
+#else
+        double supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation; //dBm
+#endif
         supposedInterferenceW = DbmToW (supposedInterferenceDbm);
         if (supposedInterferenceW < m_erEdgeInterferenceW) // if the supposed interference is less than the last ER edge interference, we should start computing the delta interference power; 
         {
@@ -1467,16 +1518,6 @@ maybeCcaBusy:
             *edgeNode = (*it)->from;
             break;
           }
-          /*
-             else if ( deltaInterferenceW > 0 && it != m_signalMap.begin ())
-             {
-             supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it-1))->inBoundAttenuation;//Dbm
-             supposedInterferenceW = DbmToW (supposedInterferenceDbm);
-             m_erEdgeInterferenceW = supposedInterferenceW;
-           *edgeNode = (*(it-1))->from;
-           break;
-           }
-           */
         }
       }
       if (m_erEdgeInterferenceW != supposedInterferenceW || isEdgeFound == false)
@@ -1491,7 +1532,11 @@ maybeCcaBusy:
       vector<Ptr<SignalMap> >::const_reverse_iterator erEdgeIt;
       for (vector<Ptr<SignalMap> >::const_reverse_iterator it = m_signalMap.rbegin (); it != m_signalMap.rend (); ++ it)
       {
+#ifndef TX_POWER_HETEROGENEITY
         double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*it)->inBoundAttenuation;//Dbm
+#else
+        double supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation; // dbm
+#endif
         supposedInterferenceW = DbmToW (supposedInterferenceDbm);
         if (supposedInterferenceW > m_erEdgeInterferenceW ) // since this time, the delta interference is positive, we want to shrink the ER region, that means when the supposed interference is greater than or equal to the last ER region edge interference, we should start computing the delta interference power. Note that here we use the reverse_iterator, so we are iterating the vector from end to the beginning
         {
@@ -1508,7 +1553,6 @@ maybeCcaBusy:
           deltaInterferenceW -= supposedInterferenceW; 
           if ( deltaInterferenceW == 0) 
           {
-            //supposedInterferenceW = GetPowerDbm (0) + GetTxGain () - (*(it-1))->inBoundAttenuation;
             m_erEdgeInterferenceW = supposedInterferenceW;
             *edgeNode = (*it)->from;
             break;
@@ -1518,35 +1562,39 @@ maybeCcaBusy:
 #ifndef NO_PROTECTION
             if (conditionTwoMeet == true)
             {
+#ifndef TX_POWER_HETEROGENEITY
               supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it))->inBoundAttenuation;//Dbm
+#else
+              supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation; // dbm
+#endif
               supposedInterferenceW = DbmToW (supposedInterferenceDbm);
               m_erEdgeInterferenceW = supposedInterferenceW;
               *edgeNode = (*(it))->from;
               break;
             }
+#ifndef TX_POWER_HETEROGENEITY
             supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it-1))->inBoundAttenuation;//Dbm
+#else
+
+            supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*(it -1))->from ,m_self) + GetTxGain () - (*(it -1))->inBoundAttenuation; // dbm
+#endif
             supposedInterferenceW = DbmToW (supposedInterferenceDbm);
             m_erEdgeInterferenceW = supposedInterferenceW;
             *edgeNode = (*(it-1))->from;
             break;
 #endif
 #ifdef NO_PROTECTION 
+#ifndef TX_POWER_HETEROGENEITY
             supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it))->inBoundAttenuation;//Dbm
+#else
+            supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation; // dbm
+#endif
             supposedInterferenceW = DbmToW (supposedInterferenceDbm);
             m_erEdgeInterferenceW = supposedInterferenceW;
             *edgeNode = (*(it))->from;
             break;
 #endif
           }
-          /*
-             else if ( deltaInterferenceW < 0)  // if the deltaInterferenceW becomes negative, roll back to the previous node and regard the node as the new boundray node.
-             {
-             double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it-1))->inBoundAttenuation;//dBm
-             supposedInterferenceW = DbmToW (supposedInterferenceDbm); 
-             m_erEdgeInterferenceW = supposedInterferenceW;
-             break;
-             }
-             */
         }
       }
       if ( m_erEdgeInterferenceW != supposedInterferenceW || isEdgeFound == false) // if these two variable does not equal to each other, that means we have computed all the neighbors in the SignalMap. In this case, we can only set the ER region as the coverage area of the coverage of the signal map.
@@ -1554,7 +1602,6 @@ maybeCcaBusy:
         m_erEdgeInterferenceW = supposedInterferenceW;
         *edgeNode = (*(m_signalMap.begin ()))->from;
         NS_ASSERT (*edgeNode != Mac48Address::GetBroadcast ());
-        //m_erEdgeInterferenceW = DbmToW (GetPowerDbm (0)); // this means the ER is empty
       }
     }
     double distance = m_channel->GetDistanceBetweenNodes(m_self, *edgeNode);
@@ -1626,6 +1673,25 @@ maybeCcaBusy:
   void WifiImacPhy::SetThresholdSnr (double snr)
   {
     m_snr = snr;
+  }
+  double WifiImacPhy::GetLinkDistance (Mac48Address sender, Mac48Address receiver )
+  {
+    return m_channel->GetDistanceBetweenNodes (sender, receiver);
+  }
+  /* The second parameter is not used in this method. 
+   */
+  double WifiImacPhy::GetPowerDbmWithFixedSnr (Mac48Address sender, Mac48Address receiver , double snr)
+  {
+    TdmaLink linkInfo =  Simulator::FindLinkBySender ( sender.ToString ()); 
+    if (linkInfo.linkId != 0)
+    {
+      //std::cout<<m_self<<" sender_found: "<<linkInfo.senderAddr <<" receiver_found: "<< linkInfo.receiverAddr << std::endl;
+      double linkLength = GetLinkDistance (Mac48Address (linkInfo.senderAddr.c_str ()), Mac48Address (linkInfo.receiverAddr.c_str ())); 
+      double pathLossDb = 10 * PATH_LOSS_EXPONENT * log10 (linkLength / REFERENCE_DISTANCE);
+      double rxc = -REFERENCE_LOSS - pathLossDb; //defined in simulator.h
+      return snr - rxc + WToDbm (GetCurrentNoiseW ()) - TX_GAIN - RX_GAIN;
+    }
+    return GetPowerDbm (0);
   }
 
 } // namespace ns3
