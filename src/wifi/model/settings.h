@@ -1,8 +1,14 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+/*
 #ifndef TX_POWER_HETEROGENEITY
 #define TX_POWER_HETEROGENEITY
+#endif
+*/
+
+#ifndef CSMA_PRKS_HYBRID
+#define CSMA_PRKS_HYBRID
 #endif
 
 /*
@@ -86,6 +92,7 @@ const uint32_t CHANNEL_SWITCH_DELAY = 750; // Microseconds;
 const int32_t NORMAL_TX_POWER = -25; // in dBm
 const double ENERGY_DETECTION_THRESHOLD = -96;// in dBm
 const double CCA_THRESHOLD = -87.2; // in dBm
+const double CCA_THRESHOLD_CSMA = -77;
 const double TX_GAIN = 1;
 const double RX_GAIN = 1;
 const uint32_t DATA_CHANNEL = 1;

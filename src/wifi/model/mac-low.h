@@ -743,6 +743,7 @@ namespace ns3 {
       void ResetPriorityForErItem (int64_t linkId);
       std::vector<NextRxSlotInfo> CalcNextRxSlotAsReceiver ();
       int64_t ComputeNextRxSlot (Mac48Address sender);
+      void CsmaSchedule ();
 
       /****************************************** PRIVATE *********************************************/
     private:
@@ -924,6 +925,10 @@ namespace ns3 {
       // Listerner needed to monitor when a channel switching occurs.
       class PhyMacLowListener * m_phyMacLowListener;
       //uint32_t m_sequenceVectorCapacity;
+#ifdef CSMA_PRKS_HYBRID
+      std::vector<uint16_t> m_csmaNodes;
+      bool m_runPRKS;
+#endif
       //----------------------------TDMA TDMA TDMA ---------------------------------------------------
       Time m_timeslot;
       bool m_nodeActive;

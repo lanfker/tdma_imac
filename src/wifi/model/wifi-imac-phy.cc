@@ -909,10 +909,12 @@ switchChannel:
             //_______________________________________________________________________________________________________
             else if ( Simulator::Now () >= Simulator::LearningTimeDuration && GetChannelNumber () == DATA_CHANNEL)
             {
+              /*
               if (hdr.GetAddr1 () == m_self)
               {
                 std::cout<<m_self<<" SNR: "<< rxPowerDbm - WToDbm (GetCurrentNoiseW ())<<" rxPower: "<< rxPowerDbm<<" from: "<<hdr.GetAddr2 () << std::endl;
               }
+              */
             }
 
             m_endRxEvent = Simulator::Schedule (rxDuration, &WifiImacPhy::EndReceive, this,

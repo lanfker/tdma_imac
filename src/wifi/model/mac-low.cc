@@ -344,7 +344,50 @@ namespace ns3 {
     m_ewmaCoefficient = EWMA_COEFFICIENT;
     m_nodesCountUpperBound = Simulator::NodesCountUpperBound;
     m_timeslot = MilliSeconds (TIME_SLOT_LENGTH);
+
+#ifdef CSMA_PRKS_HYBRID
+    //link pairs that are independent from each other in the entire network
+    m_csmaNodes.push_back (11); 
+    m_csmaNodes.push_back (16); 
+
+    m_csmaNodes.push_back (22); 
+    m_csmaNodes.push_back (27); 
+
+    m_csmaNodes.push_back (23); 
+    m_csmaNodes.push_back (28); 
+
+    m_csmaNodes.push_back (39); 
+    m_csmaNodes.push_back (44); 
+
+    m_csmaNodes.push_back (58); 
+    m_csmaNodes.push_back (59); 
+
+    m_csmaNodes.push_back (67); 
+    m_csmaNodes.push_back (70); 
+
+    m_csmaNodes.push_back (68); 
+    m_csmaNodes.push_back (96); 
+
+    m_csmaNodes.push_back (92); 
+    m_csmaNodes.push_back (97); 
+
+    m_csmaNodes.push_back (95); 
+    m_csmaNodes.push_back (98); 
+    
+    if (find (m_csmaNodes.begin (), m_csmaNodes.end (), m_self.GetNodeId ()) == m_csmaNodes.end ())
+    {
+      m_runPRKS = true;
+      Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::CalcPriority, this);
+    }
+    else
+    {
+      m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
+      m_runPRKS = false;
+      Simulator::Schedule ((Simulator::LearningTimeDuration + MicroSeconds (CHANNEL_SWITCH_DELAY)), &MacLow::CsmaSchedule, this);
+    }
+#else
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::CalcPriority, this);
+#endif
     m_nodeActive = false;
     m_controlPacketPayload.clear ();
     m_currentTimeslot = 0; //for initialization only
@@ -476,6 +519,10 @@ namespace ns3 {
     if (!m_phy->IsStateSwitching ())   
     {
       m_phy->SetChannelNumber (CONTROL_CHANNEL); // as by default
+    }
+    if ( m_runPRKS == false)
+    {
+      phy->GetObject<WifiImacPhy> ()->SetCcaMode1Threshold (CCA_THRESHOLD_CSMA);
     }
     SetupPhyMacLowListener (phy);
   }
@@ -752,6 +799,16 @@ namespace ns3 {
         //it->nextSlots.clear ();
       }
     }
+  }
+
+  void MacLow::CsmaSchedule ()
+  {
+    Time delay =  MicroSeconds ( (int64_t)m_uniform.GetValue () * 30);
+    if (m_phy->IsStateIdle () )
+    {
+      GenerateDataPacketAndSend ();
+    }
+    Simulator::Schedule ((delay + MilliSeconds (1)), &MacLow::CsmaSchedule, this);
   }
 
 
@@ -1344,10 +1401,24 @@ namespace ns3 {
         LinkEstimatorItem estimatorItem = GetEstimatorTableItemByNeighborAddr (hdr.GetAddr2 (), m_self);
         std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<< hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_edge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNodeId () << std::endl;
         TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
+#ifdef CSMA_PRKS_HYBRID
+        if (m_runPRKS == false)
+        {
+          UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
+        }
+        else
+        {
+          if ( GetErRxStatus (linkInfo.linkId ) ==  true)
+          {
+            UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
+          }
+        }
+#else
         if ( GetErRxStatus (linkInfo.linkId ) ==  true)
         {
           UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
         }
+#endif
 
         uint8_t buffer[DATA_PACKET_PAYLOAD_LENGTH];
         packet->CopyData (buffer, DATA_PACKET_PAYLOAD_LENGTH);
@@ -1692,7 +1763,7 @@ rxPacket:
         if ( Simulator::Now () >= Simulator::LearningTimeDuration )
         {
           Ptr<SignalMap> signalMapItem = imacPhy->GetSignalMapItem (hdr->GetAddr1 ());
-          std::cout<<m_self<< " data_packet tx_power: "<< tx_power<<" sender: "<< hdr->GetAddr2 () <<" receiver: "<< hdr->GetAddr1 () <<" singalMap.snr: "<< signalMapItem->inSinr << std::endl;
+          //std::cout<<m_self<< " data_packet tx_power: "<< tx_power<<" sender: "<< hdr->GetAddr2 () <<" receiver: "<< hdr->GetAddr1 () <<" singalMap.snr: "<< signalMapItem->inSinr << std::endl;
         }
         imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
       }
@@ -1701,7 +1772,7 @@ rxPacket:
         double tx_power = imacPhy-> GetPowerDbmWithFixedSnr (hdr->GetAddr1 (), m_self);
         if ( Simulator::Now () >= Simulator::LearningTimeDuration )
         {
-          std::cout<<m_self<< "ack_packet tx_power: "<< tx_power<<" sender: "<< m_self <<" receiver: "<< hdr->GetAddr1 () << std::endl;
+          //std::cout<<m_self<< "ack_packet tx_power: "<< tx_power<<" sender: "<< m_self <<" receiver: "<< hdr->GetAddr1 () << std::endl;
         }
         imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
       }
@@ -2655,6 +2726,9 @@ rxPacket:
           }
           it->ReceivedDataPacketNumbers.clear ();
           std::cout<<m_self<<" from: "<<sender<<" real segment pdr: "<< receivedCount / (double)difference << std::endl;
+#ifdef CSMA_PRKS_HYBRID
+          return;
+#endif
           // -----------------UPDATE SENDING PROBABILITY --------------------------
 #ifdef TX_DURATION_PROBABILITY
           double slotDifference = m_currentTimeslot - m_sendProbLastComputedTimeSlot;
