@@ -45,6 +45,12 @@ const double REFERENCE_LOSS = 46.6777;
 class SimulatorImpl;
 class Scheduler;
 
+typedef struct FeasibleSchedule
+{
+  int64_t controlLink;
+  std::vector<int64_t> feasibleLinks;
+}FeasibleSchedule;
+
 typedef struct TdmaLink
 {
   std::string senderAddr;
@@ -855,6 +861,35 @@ public:
   static bool m_linksClassified;
   static NodeLinkDetails m_nodeLinkDetails[NODE_COUNT_UPPER_BOUND];
   static std::vector<TdmaSignalMap> GetNodeSignalMap (std::string addr);
+  static std::vector<int64_t> m_sendingLinks;
+  static int16_t m_controlNodeId;
+  static int64_t m_controlLink;
+
+  //SCREAM implementation
+  /* @linkId is the control link id. If found, return true, otherwise false.
+   */
+  static bool CheckLinkScheduledAsControlLink (int64_t linkId);
+  /* Find the feasible schedule for @m_controlLink first, then add @linkId into its feasibleLinks vector
+   * @feasibleLinks vector keeps records of feasible links for the control link @m_controlLink
+   */
+  static void RegisterFeasibleLink (int64_t linkId);
+  /* Find the feasible schedule for the control link @linkId
+   * This operation should only be executed after the SCREAM scheduling work has been done.
+   */
+  static FeasibleSchedule GetScheduleByControlLink (int64_t linkId);
+  /* Register a new feasible schedule in @m_screamSchedules. the control link id is
+   * provided in @feasibleSchedule.controlLink
+   */
+  static void RegisterNewFeasibleSchedule (FeasibleSchedule feasibleSchedule);
+  /* Register scream premitive, if true, newly considered link should be removed
+   * if false, newly considered link can be added into @feasibleLinks vector
+   */
+  static void RegisterScreamPremitive(bool val);
+  /* Return the scream premitive value
+   */
+  static bool CheckScreamPremitive();
+
+  static void PrintScreamSchedules ();
   //--------------------------------------------------------------------PRIVATE-------------------------------------------------------
 private:
   Simulator ();
@@ -865,6 +900,8 @@ private:
   static std::vector<TdmaLink> m_tdmaLinks;
   static std::vector<NodeSignalMap> m_signalMaps;
   static std::vector<ControlReliability> m_controlReliabilityCollec;
+  static std::vector<FeasibleSchedule> m_screamSchedules;
+  static bool m_screamPremitive;
 };
 
 /**

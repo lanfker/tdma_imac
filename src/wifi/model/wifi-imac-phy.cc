@@ -1007,7 +1007,7 @@ maybeCcaBusy:
     bool isShortPreamble = (WIFI_PREAMBLE_SHORT == preamble);
     NotifyMonitorSniffTx (pkt, (uint16_t)GetChannelFrequencyMhz (), GetChannelNumber (), dataRate500KbpsUnits, isShortPreamble);
 
-    //std::cout<<" using double, "<< " state: "<< m_state->GetState ()<<" channel: "<<GetChannelNumber () << std::endl;
+    //std::cout<<m_self<<" using double, "<< " state: "<< m_state->GetState ()<<" channel: "<<GetChannelNumber () << std::endl;
     m_state->SwitchToTx (txDuration, pkt, mode, preamble, DATA_TX_POWER_LEVEL);
     if (hdr.GetAddr1 ().IsGroup ()) // in the initial process, if a data is broadcast data, send in power level m_initialPowerLevel, otherwise, send in normal powerlevel
     {
@@ -1397,6 +1397,20 @@ maybeCcaBusy:
       }
       else
       {
+#if defined (SCREAM)
+        if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 && hdr.GetAddr1 () == m_self)
+        {
+          TdmaLink linkInfo = Simulator::FindLinkBySender (hdr.GetAddr2 ().ToString ());
+          FeasibleSchedule schedule = Simulator::GetScheduleByControlLink (Simulator::m_controlLink);
+          if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkInfo.linkId) != schedule.feasibleLinks.end ()
+              || linkInfo.linkId == Simulator::m_controlLink)
+          {
+            //std::cout<<m_self<<" node: "<<m_self.GetNodeId () <<" register scream as true" << std::endl;
+            Simulator::RegisterScreamPremitive (true);
+          }
+          //Check if need to register scream
+        }
+#endif
         /* failure. */
         NotifyRxDrop (packet);
         m_state->SwitchFromRxEndError (packet, snrPer.snr);

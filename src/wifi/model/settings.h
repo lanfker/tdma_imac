@@ -7,8 +7,14 @@
 #endif
 */
 
+/*
 #ifndef CSMA_PRKS_HYBRID
 #define CSMA_PRKS_HYBRID
+#endif
+*/
+
+#ifndef SCREAM
+#define SCREAM
 #endif
 
 /*

@@ -744,6 +744,13 @@ namespace ns3 {
       std::vector<NextRxSlotInfo> CalcNextRxSlotAsReceiver ();
       int64_t ComputeNextRxSlot (Mac48Address sender);
       void CsmaSchedule ();
+      void CalcScreamSchedule ();
+      void TrySendProbePacket ();
+      void CheckAndSendProbeMsg ();
+      void SwithChannelForScream ();
+      void ScreamNormalDataTransmission ();
+      void InitiateRemainNodes ();
+      uint16_t GetFromPosition (uint16_t pos);
 
       /****************************************** PRIVATE *********************************************/
     private:
@@ -925,6 +932,10 @@ namespace ns3 {
       // Listerner needed to monitor when a channel switching occurs.
       class PhyMacLowListener * m_phyMacLowListener;
       //uint32_t m_sequenceVectorCapacity;
+#if defined (SCREAM)
+      int16_t m_consideredNodeId;
+      std::vector<uint16_t> m_remainNodes;
+#endif
 #ifdef CSMA_PRKS_HYBRID
       std::vector<uint16_t> m_csmaNodes;
       bool m_runPRKS;

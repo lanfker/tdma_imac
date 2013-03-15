@@ -129,8 +129,89 @@ namespace ns3 {
   bool Simulator::m_linksClassified = false;
   NodeLinkDetails Simulator::m_nodeLinkDetails[NODE_COUNT_UPPER_BOUND];
 
+  std::vector<FeasibleSchedule> Simulator::m_screamSchedules;
+  int16_t Simulator::m_controlNodeId = 0;
+  int64_t Simulator::m_controlLink = 0;
+  bool Simulator::m_screamPremitive = false;
+  std::vector<int64_t> Simulator::m_sendingLinks;
+
   Time Simulator::SlotBeginningTime = Seconds (0);
 
+  void Simulator::PrintScreamSchedules ()
+  {
+    for (std::vector<FeasibleSchedule>::iterator it = m_screamSchedules.begin (); it != m_screamSchedules.end (); ++ it)
+    {
+      std::cout<<" control_link: "<< it->controlLink<< std::endl;
+      for (std::vector<int64_t>::iterator _it = it->feasibleLinks.begin (); _it != it->feasibleLinks.end (); ++ _it)
+      {
+        std::cout<<"\t\t"<<"feasible_link: "<<*_it<< std::endl;
+      }
+    }
+  }
+  void Simulator::RegisterNewFeasibleSchedule (FeasibleSchedule feasibleSchedule)
+  {
+    m_screamSchedules.push_back (feasibleSchedule);
+  }
+
+  /* @linkId is the control link id. If found, return true, otherwise false.
+   */
+  bool Simulator::CheckLinkScheduledAsControlLink (int64_t linkId)
+  {
+    for (std::vector<FeasibleSchedule>::iterator it = m_screamSchedules.begin (); it != m_screamSchedules.end (); ++ it)
+    {
+      if (it->controlLink == linkId)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+  /* Find the feasible schedule for @m_controlLink first, then add @linkId into its feasibleLinks vector
+   * @feasibleLinks vector keeps records of feasible links for the control link @m_controlLink
+   */
+  void Simulator::RegisterFeasibleLink (int64_t linkId)
+  {
+    for (std::vector<FeasibleSchedule>::iterator it = m_screamSchedules.begin (); it != m_screamSchedules.end (); ++ it)
+    {
+      if (it->controlLink == m_controlLink)
+      {
+        if ( find (it->feasibleLinks.begin (), it->feasibleLinks.end (), linkId) == it->feasibleLinks.end ())
+        {
+          it->feasibleLinks.push_back (linkId);
+        }
+        break;
+      }
+    }
+  }
+  /* Find the feasible schedule for the control link @linkId
+   * This operation should only be executed after the SCREAM scheduling work has been done.
+   */
+  FeasibleSchedule Simulator::GetScheduleByControlLink (int64_t linkId)
+  {
+    for (std::vector<FeasibleSchedule>::iterator it = m_screamSchedules.begin (); it != m_screamSchedules.end (); ++ it)
+    {
+      if (it->controlLink == linkId)
+      {
+        return *it;
+      }
+    }
+    FeasibleSchedule nullSchedule;
+    nullSchedule.controlLink = 0;
+    return nullSchedule;
+  }
+  /* Register scream premitive, if true, newly considered link should be removed
+   * if false, newly considered link can be added into @feasiblelinks vector
+   */
+  void Simulator::RegisterScreamPremitive(bool val)
+  {
+    m_screamPremitive = val;
+  }
+  /* Return the scream premitive value
+   */
+  bool Simulator::CheckScreamPremitive()
+  {
+    return m_screamPremitive;
+  }
 
 
   void Simulator::ClearSendingNodes ()
