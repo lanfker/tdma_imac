@@ -17,6 +17,7 @@ public:
 
   static const double  m_pdrToSnr[1000];
   virtual double ComputeSlope (double currentPdr);
+  virtual double ComputeSlope (double currentPdr, double desiredPdr);
   virtual double GetSnrByPdr (double pdr);
 private:
 

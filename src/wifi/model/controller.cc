@@ -112,6 +112,19 @@ namespace ns3
     return slope;
   }
 
+  double Controller::ComputeSlope (double currentPdr, double desiredPdr)
+  {
+    NS_ASSERT (currentPdr != desiredPdr);
+    double slope = 0.0; 
+    if (currentPdr < 0.002)
+    {
+      currentPdr = 0.002;
+    }
+    double deltaSnr = Controller::m_pdrToSnr[((uint32_t)(currentPdr*1000))] - Controller::m_pdrToSnr[((uint32_t)(desiredPdr*1000))]; // accuracy is 0.001 pdr
+    slope = fabs ((currentPdr - desiredPdr)/deltaSnr); // the slope at the point PDR=currentPdr in the SNR-to-PDR curve.
+    return slope;
+  }
+
   double Controller::GetSnrByPdr (double pdr)
   {
     if (pdr < 0.002)
@@ -195,7 +208,7 @@ namespace ns3
 #ifndef NO_PROTECTION // Use protection, E_0 is enabled.
     if (fabs (currentPdr - desiredPdr ) > E_0 )
     {
-      slope = Controller::ComputeSlope (desiredPdr);
+      slope = Controller::ComputeSlope (currentPdr, desiredPdr);
     }
     else if (fabs (currentPdr - desiredPdr ) <= E_0 )
     {
@@ -243,13 +256,13 @@ namespace ns3
 #endif
     double slope = 0;
 #ifndef NO_PROTECTION // Use protection, m_E0 is enabled.
-    if (fabs (estimatedCurrentPdr - desiredPdr ) > m_E0 )
+    if (fabs (ewmaCurrentPdr - desiredPdr ) > m_E0 )
     {
       conditionTwoMeet = true;
       //slope = Controller::ComputeSlope (ewmaCurrentPdr) > Controller::ComputeSlope (desiredPdr) ? Controller::ComputeSlope (ewmaCurrentPdr) :Controller::ComputeSlope (desiredPdr);
-      slope = Controller::ComputeSlope (desiredPdr);
+      slope = Controller::ComputeSlope (ewmaCurrentPdr, desiredPdr);
     }
-    else if (fabs (estimatedCurrentPdr - desiredPdr ) <= m_E0 )
+    else if (fabs (ewmaCurrentPdr - desiredPdr ) <= m_E0 )
     {
       slope = Controller::ComputeSlope (ewmaCurrentPdr);
     }

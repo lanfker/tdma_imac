@@ -1397,7 +1397,7 @@ maybeCcaBusy:
       }
       else
       {
-#if defined (SCREAM)
+#if defined(SCREAM)
         if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 && hdr.GetAddr1 () == m_self)
         {
           TdmaLink linkInfo = Simulator::FindLinkBySender (hdr.GetAddr2 ().ToString ());

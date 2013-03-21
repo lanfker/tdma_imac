@@ -48,6 +48,7 @@
 #include <cstdlib>
 #include <cmath>
 #include "quick-sort.h"
+//#include "settings.h"
 NS_LOG_COMPONENT_DEFINE ("MacLow");
 
 #undef NS_LOG_APPEND_CONTEXT
@@ -477,13 +478,13 @@ namespace ns3 {
     {
       m_phy->SetChannelNumber (CONTROL_CHANNEL); // as by default
     }
-#if defined (CSMA_PRKS_HYBRID)
+#if defined(CSMA_PRKS_HYBRID)
     if ( m_runPRKS == false)
     {
       phy->GetObject<WifiImacPhy> ()->SetCcaMode1Threshold (CCA_THRESHOLD_CSMA);
     }
 #endif
-#if defined (SCREAM)
+#if defined(SCREAM)
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::SwithChannelForScream, this);
 #endif
     SetupPhyMacLowListener (phy);
@@ -528,7 +529,7 @@ namespace ns3 {
       m_runPRKS = false;
       Simulator::Schedule ((Simulator::LearningTimeDuration + MicroSeconds (CHANNEL_SWITCH_DELAY)), &MacLow::CsmaSchedule, this);
     }
-#elif defined (SCREAM)
+#elif defined(SCREAM)
     m_consideredNodeId = 0;
     Simulator::RegisterScreamPremitive (false);
     m_nodeActive = true; 
@@ -546,10 +547,12 @@ namespace ns3 {
   {
     m_stationManager = manager;
   }
+#if defined (SCREAM)
   void MacLow::SwithChannelForScream ()
   {
     m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
   }
+#endif
 
   void MacLow::SetAddress (Mac48Address ad)
   {
@@ -2080,7 +2083,7 @@ rxPacket:
     // parameter: sender, receiver
     if (m_phy->GetChannelNumber () == DATA_CHANNEL ) // we only set sequence number when the node is sending data packet
     {
-#if defined (SCREAM)
+#if defined(SCREAM)
       if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0)
       {
         LinkEstimatorItem estimatorItem = GetEstimatorTableItemByNeighborAddr (m_currentHdr.GetAddr2 (), m_currentHdr.GetAddr1 () );
@@ -4101,6 +4104,7 @@ rxPacket:
       return m_currentTimeslot;
     }
 
+#if defined (SCREAM)
     void MacLow::CalcScreamSchedule ()
     {
       std::cout<<m_self<<" function invokation: CalcScreamSchedule"<<" sream: "<<Simulator::CheckScreamPremitive ()<< std::endl;
@@ -4206,7 +4210,9 @@ rxPacket:
       }
       Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
     }
+#endif
 
+#if defined (SCREAM)
     void MacLow::CheckAndSendProbeMsg ()
     {
       TdmaLink linkInfo = Simulator::FindLinkBySender (m_self.ToString ());
@@ -4224,7 +4230,9 @@ rxPacket:
         Simulator::Schedule (m_timeslot, &MacLow::ScreamNormalDataTransmission, this);
       }
     }
+#endif
 
+#if defined (SCREAM)
     void MacLow::TrySendProbePacket ()
     {
       NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
@@ -4260,7 +4268,9 @@ rxPacket:
       NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->IsStateIdle () == true);
       SendDataPacket ();
     }
+#endif
 
+#if defined (SCREAM)
     void MacLow::ScreamNormalDataTransmission ()
     {
       int64_t maxLinkId = 0;
@@ -4293,6 +4303,9 @@ rxPacket:
         Simulator::Schedule (m_timeslot, &MacLow::ScreamNormalDataTransmission, this);
       }
     }
+#endif
+
+#if defined (SCREAM)
     void MacLow::InitiateRemainNodes ()
     {
       for (uint16_t i = 1; i <= NETWORK_SIZE; ++ i)
@@ -4300,6 +4313,8 @@ rxPacket:
         m_remainNodes.push_back (i);
       }
     }
+#endif
+#if defined (SCREAM)
     uint16_t MacLow::GetFromPosition (uint16_t pos)
     {
       std::vector<uint16_t>::iterator it = m_remainNodes.begin ();
@@ -4307,4 +4322,5 @@ rxPacket:
       m_remainNodes.erase (it + pos - 1);
       return node_id;
     }
+#endif
   } // namespace ns3

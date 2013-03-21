@@ -13,9 +13,11 @@
 #endif
 */
 
+/*
 #ifndef SCREAM
 #define SCREAM
 #endif
+*/
 
 /*
 #ifndef MIXED_PDR_REQUIREMENTS
