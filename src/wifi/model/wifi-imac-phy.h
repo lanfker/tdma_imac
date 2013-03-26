@@ -217,7 +217,7 @@ namespace ns3 {
       double GetTransmissionPowerDbm (double maxInterference);
       uint32_t GetErSize (double maxInterferenceW) ;
 
-      void SendPacket (Ptr<const Packet> packet, WifiMode mode, enum WifiPreamble preamble, double txPower);
+      void SendPacket (Ptr<const Packet> packet, WifiMode txMode, enum WifiPreamble preamble, double txPower);
       /* 
       */
       double GetErEdgeInterference ( double deltaInterference, double lastErEdgeInterference, Mac48Address *edgeNode, bool conditionTwoMeet, bool risingAchieved);

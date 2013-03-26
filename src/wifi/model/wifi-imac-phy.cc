@@ -946,7 +946,7 @@ maybeCcaBusy:
       }
     }
 
-  void WifiImacPhy::SendPacket (Ptr<const Packet> packet, WifiMode mode, enum WifiPreamble preamble, double txPower)
+  void WifiImacPhy::SendPacket (Ptr<const Packet> packet, WifiMode txMode, enum WifiPreamble preamble, double txPower)
   {
     if (GetChannelNumber () == CONTROL_CHANNEL && Simulator::Now () < Simulator::LearningTimeDuration)
     {
@@ -989,7 +989,7 @@ maybeCcaBusy:
       pkt->AddByteTag (attenuationTag);
 
     }
-    Time txDuration = CalculateTxDuration (pkt->GetSize (), mode, preamble);
+    Time txDuration = CalculateTxDuration (pkt->GetSize (), txMode, preamble);
     if (Simulator::Now () >Simulator::LearningTimeDuration)
     {
       if (GetChannelNumber () == CONTROL_CHANNEL)
@@ -1003,22 +1003,22 @@ maybeCcaBusy:
       m_interference.NotifyRxEnd ();
     }
     NotifyTxBegin (pkt);
-    uint32_t dataRate500KbpsUnits = mode.GetDataRate () / 500000;
+    uint32_t dataRate500KbpsUnits = txMode.GetDataRate () / 500000;
     bool isShortPreamble = (WIFI_PREAMBLE_SHORT == preamble);
     NotifyMonitorSniffTx (pkt, (uint16_t)GetChannelFrequencyMhz (), GetChannelNumber (), dataRate500KbpsUnits, isShortPreamble);
 
     //std::cout<<m_self<<" using double, "<< " state: "<< m_state->GetState ()<<" channel: "<<GetChannelNumber () << std::endl;
-    m_state->SwitchToTx (txDuration, pkt, mode, preamble, DATA_TX_POWER_LEVEL);
+    m_state->SwitchToTx (txDuration, pkt, txMode, preamble, DATA_TX_POWER_LEVEL);
     if (hdr.GetAddr1 ().IsGroup ()) // in the initial process, if a data is broadcast data, send in power level m_initialPowerLevel, otherwise, send in normal powerlevel
     {
       if (Simulator::Now () < Simulator::LearningTimeDuration )
       {
         txPower = m_initialPowerLevel; // send packet in a large enough power level to enable the learning process 
-        m_channel->Send (this, pkt, GetPowerDbm ((uint8_t)txPower) + m_txGainDb, mode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
+        m_channel->Send (this, pkt, GetPowerDbm ((uint8_t)txPower) + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
         return;
       }
     }
-    m_channel->Send (this, pkt, txPower + m_txGainDb, mode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
+    m_channel->Send (this, pkt, txPower + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
   }
   void
     WifiImacPhy::SendPacket (Ptr<const Packet> packet, WifiMode txMode, WifiPreamble preamble, uint8_t txPower)

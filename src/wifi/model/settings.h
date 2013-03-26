@@ -65,6 +65,7 @@ const double DESIRED_ACK_PDR = 0.9;
 
 const int64_t PRIORITY_RESET_TIMESLOT = 100;
 const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds
+//const uint64_t PACKET_GENERATION_INTERVAL = 50; // milliseconds
 
 //-------------------INTERFERENCE.H-----------------------
 #ifndef NI_QUANTILE_ESTIMATION_EWMA
