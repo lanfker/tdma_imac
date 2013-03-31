@@ -1382,7 +1382,14 @@ maybeCcaBusy:
 
       if (hdr.IsData () && !hdr.GetAddr1 ().IsGroup () && GetChannelNumber () == DATA_CHANNEL && hdr.GetAddr1 () == m_self)
       {
-        std::cout<<"from "<<hdr.GetAddr2 ()<<" to "<< m_self<<" snr=" << 10*log10(snrPer.snr) << ", per=" << snrPer.per <<" concurrentTxNO: "<<GetConcurrentTxNo ()<< std::endl;
+#if defined (SCREAM)
+        if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
+        {
+          std::cout<<"from "<<hdr.GetAddr2 ()<<" to "<< m_self<<" snr=" << 10*log10(snrPer.snr) << ", per=" << snrPer.per <<" concurrentTxNO: "<<GetConcurrentTxNo ()<< std::endl;
+        }
+#else
+          std::cout<<"from "<<hdr.GetAddr2 ()<<" to "<< m_self<<" snr=" << 10*log10(snrPer.snr) << ", per=" << snrPer.per <<" concurrentTxNO: "<<GetConcurrentTxNo ()<< std::endl;
+#endif
       }
 
       if ((m_random.GetValue () > snrPer.per))

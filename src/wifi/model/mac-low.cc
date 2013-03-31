@@ -1371,7 +1371,16 @@ namespace ns3 {
         nextSlotFromReceiver |= buffer [0];
         nextSlotFromReceiver += m_currentTimeslot;
         UpdateNextRxSlot (linkInfo.linkId,nextSlotFromReceiver , false);
+
+#if defined (SCREAM)
+        if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
+        {
+          std::cout<<"4: "<<Simulator::Now ()<<" ack from " << ackSenderAddress << " to "<<m_self <<" is received" <<std::endl;
+        }
+#else
         std::cout<<"4: "<<Simulator::Now ()<<" ack from " << ackSenderAddress << " to "<<m_self <<" is received" <<std::endl;
+#endif
+
         AckSequenceNoTag ackSequenceNoTag; 
         /*  //DISABLE ACK ER AND ACK PDR 
         if (packet->FindFirstMatchingByteTag (ackSequenceNoTag) )
@@ -1429,7 +1438,14 @@ namespace ns3 {
       {
         //for data, Addr2 is the data link sender, and addr1==@m_self is the data link receiver
         LinkEstimatorItem estimatorItem = GetEstimatorTableItemByNeighborAddr (hdr.GetAddr2 (), m_self);
+#if defined (SCREAM)
+        if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
+        {
+          std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<< hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_edge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNodeId () << std::endl;
+        }
+#else
         std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<< hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_edge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNodeId () << std::endl;
+#endif
         TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
 #ifdef CSMA_PRKS_HYBRID
         if (m_runPRKS == false)
@@ -2111,7 +2127,14 @@ rxPacket:
     m_currentPacket->AddTrailer (fcs);
     if (Simulator::Now () >= Simulator::LearningTimeDuration && m_phy->GetChannelNumber () == DATA_CHANNEL) // when node is in data channel, type this message
     {
+#if defined (SCREAM)
+      if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
+      {
+        std::cout<<"1: " <<Simulator::Now ()<<" sending data packet from: "<<m_self<<" to: "<<m_currentHdr.GetAddr1 () <<" seq: "<<m_currentHdr.GetSequenceNumber () <<"  with outSnr: "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" nodeid: "<<m_self.GetNodeId () <<std::endl;
+      }
+#else
       std::cout<<"1: " <<Simulator::Now ()<<" sending data packet from: "<<m_self<<" to: "<<m_currentHdr.GetAddr1 () <<" seq: "<<m_currentHdr.GetSequenceNumber () <<"  with outSnr: "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" nodeid: "<<m_self.GetNodeId () <<std::endl;
+#endif
     }
     ForwardDown (m_currentPacket, &m_currentHdr, dataTxMode);
     m_currentPacket = 0;
@@ -2267,7 +2290,15 @@ rxPacket:
 
     if (Simulator::Now () >= Simulator::LearningTimeDuration)
     {
+#if defined (SCREAM)
+      if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
+      {
+        std::cout<<"3: "<<Simulator::Now ()<<" sending ack back to: "<<source<< " from: "<<m_self<<std::endl;
+      }
+#else
       std::cout<<"3: "<<Simulator::Now ()<<" sending ack back to: "<<source<< " from: "<<m_self<<std::endl;
+
+#endif
       m_sendingCount ++;
     }
     ForwardDown (packet, &ack, ackTxMode);
@@ -4136,7 +4167,7 @@ rxPacket:
         Simulator::CurrentTryTimes = 0;
         Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
       }
-      std::cout<<m_self<<" function invokation: CalcScreamSchedule"<<" sream: "<<Simulator::CheckScreamPremitive ()<< std::endl;
+      //std::cout<<m_self<<" function invokation: CalcScreamSchedule"<<" sream: "<<Simulator::CheckScreamPremitive ()<< std::endl;
       // schedule fails
       if ( Simulator::CheckScreamPremitive () == true && Simulator::m_sendingLinks.size () > 1)
       {
@@ -4228,7 +4259,7 @@ rxPacket:
       {
         std::cout<<*it<<" ";
       }
-      std::cout<<std::endl;
+      std::cout<<" controlnode: "<< Simulator::m_controlNodeId<<std::endl;
 
       if (m_consideredNodeId >= NETWORK_SIZE - 1 && Simulator::m_controlNodeId == NETWORK_SIZE)
       {
