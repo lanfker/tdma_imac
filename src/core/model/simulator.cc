@@ -117,6 +117,7 @@ namespace ns3 {
     return *pimpl;
   }
 
+  //STATIC VARIABLES
   Time Simulator::LearningTimeDuration = Seconds (LEARNING_PROCESS_DURATION);
   uint32_t Simulator::MinInformRange = MIN_INFORM_RANGE;
   Time Simulator::SimulationStopTime = Seconds (SIMULATION_STOP_TIME);
@@ -127,7 +128,9 @@ namespace ns3 {
   std::vector<ControlReliability> Simulator::m_controlReliabilityCollec;
   std::vector<std::string> Simulator::m_nodesInDataChannel;
   bool Simulator::m_linksClassified = false;
-  NodeLinkDetails Simulator::m_nodeLinkDetails[NODE_COUNT_UPPER_BOUND];
+  NodeLinkDetails Simulator::m_nodeLinkDetails[NODE_COUNT_UPPER_BOUND]; 
+  uint32_t Simulator::CurrentTryTimes = 0;
+  std::vector<ScreamStatisticsItem> Simulator::m_screamStatistics;
 
   std::vector<FeasibleSchedule> Simulator::m_screamSchedules;
   int16_t Simulator::m_controlNodeId = 0;

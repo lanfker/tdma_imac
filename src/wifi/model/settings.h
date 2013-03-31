@@ -13,11 +13,9 @@
 #endif
 */
 
-/*
 #ifndef SCREAM
 #define SCREAM
 #endif
-*/
 
 /*
 #ifndef MIXED_PDR_REQUIREMENTS
@@ -70,6 +68,9 @@ const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds
 //-------------------INTERFERENCE.H-----------------------
 #ifndef NI_QUANTILE_ESTIMATION_EWMA
 #define NI_QUANTILE_ESTIMATION_EWMA
+#endif
+#if defined (SCREAM)
+const uint32_t MAX_TRY_TIMES=20;
 #endif
 
 const double NOISE_POWER_W = 4.01237e-13;

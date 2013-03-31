@@ -1394,23 +1394,49 @@ maybeCcaBusy:
         double noiseDbm = RatioToDb (event->GetRxPowerW () / snrPer.snr) - GetRxNoiseFigure () + 30;
         NotifyMonitorSniffRx (packet, (uint16_t)GetChannelFrequencyMhz (), GetChannelNumber (), dataRate500KbpsUnits, isShortPreamble, signalDbm, noiseDbm);
         m_state->SwitchFromRxEndOk (packet, snrPer.snr, event->GetPayloadMode (), event->GetPreambleType ());
-      }
-      else
-      {
-#if defined(SCREAM)
+#if defined (SCREAM)
+
         if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 && hdr.GetAddr1 () == m_self)
         {
           TdmaLink linkInfo = Simulator::FindLinkBySender (hdr.GetAddr2 ().ToString ());
           FeasibleSchedule schedule = Simulator::GetScheduleByControlLink (Simulator::m_controlLink);
-          if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkInfo.linkId) != schedule.feasibleLinks.end ()
+  
+          //if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkInfo.linkId) != schedule.feasibleLinks.end ()
+          if ( find (Simulator::m_sendingLinks.begin (), Simulator::m_sendingLinks.end (), linkInfo.linkId) != Simulator::m_sendingLinks.end ()
               || linkInfo.linkId == Simulator::m_controlLink)
           {
-            //std::cout<<m_self<<" node: "<<m_self.GetNodeId () <<" register scream as true" << std::endl;
-            Simulator::RegisterScreamPremitive (true);
+            for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it) // make sure the current link is in current trying schedule
+            {
+              if (it->sender == hdr.GetAddr2().ToString () && it->receiver == hdr.GetAddr1 ().ToString ())
+              {
+                it->receive_count += 1;
+                break;
+              }
+            }
+            //Simulator::RegisterScreamPremitive (true);
           }
           //Check if need to register scream
         }
 #endif
+      }
+      else
+      {
+        /*
+#if defined(SCREAM)
+if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 && hdr.GetAddr1 () == m_self)
+{
+TdmaLink linkInfo = Simulator::FindLinkBySender (hdr.GetAddr2 ().ToString ());
+FeasibleSchedule schedule = Simulator::GetScheduleByControlLink (Simulator::m_controlLink);
+if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkInfo.linkId) != schedule.feasibleLinks.end ()
+|| linkInfo.linkId == Simulator::m_controlLink)
+{
+        //std::cout<<m_self<<" node: "<<m_self.GetNodeId () <<" register scream as true" << std::endl;
+        Simulator::RegisterScreamPremitive (true);
+        }
+      //Check if need to register scream
+      }
+#endif
+*/
         /* failure. */
         NotifyRxDrop (packet);
         m_state->SwitchFromRxEndError (packet, snrPer.snr);

@@ -45,6 +45,14 @@ const double REFERENCE_LOSS = 46.6777;
 class SimulatorImpl;
 class Scheduler;
 
+typedef struct ScreamStatisticsItem
+{
+  std::string sender;
+  std::string receiver;
+  double send_count;
+  double receive_count;
+}ScreamStatisticsItem;
+
 typedef struct FeasibleSchedule
 {
   int64_t controlLink;
@@ -890,6 +898,8 @@ public:
   static bool CheckScreamPremitive();
 
   static void PrintScreamSchedules ();
+  static uint32_t CurrentTryTimes;
+  static std::vector<ScreamStatisticsItem> m_screamStatistics;
   //--------------------------------------------------------------------PRIVATE-------------------------------------------------------
 private:
   Simulator ();

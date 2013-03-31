@@ -368,6 +368,9 @@ namespace ns3 {
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::GeneratePacket, this );
     m_nextSendingSlot = 0; 
     m_newErEdgeReceivedFromReceiver = false;
+#if defined (SCREAM)
+    Simulator::CurrentTryTimes = MAX_TRY_TIMES;
+#endif
   }
 
   MacLow::~MacLow ()
@@ -1297,6 +1300,10 @@ namespace ns3 {
       senderSignalMap = imacPhy-> GetSignalMapItem (hdr.GetAddr2 ()); 
     }
     NodesTxProbability nodesTxProb;
+    nodesTxProb.difference = 0;
+    nodesTxProb.increment = 0;
+    nodesTxProb.mean = 0;
+    nodesTxProb.variance = 0;
     nodesTxProb.nodeId = hdr.GetAddr2 ().GetNodeId ();
     nodesTxProb.txProbability = payload.txProbability;
     UpdateNodeTxProbability (nodesTxProb);
@@ -4107,22 +4114,44 @@ rxPacket:
 #if defined (SCREAM)
     void MacLow::CalcScreamSchedule ()
     {
+      // let every link have time to send MAX_TRY_TIMES of packets before draw conclusions 
+      //std::cout<<" currentTryTimes: "<<Simulator::CurrentTryTimes << std::endl;
+      if ( Simulator::CurrentTryTimes != MAX_TRY_TIMES )
+      {
+        Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
+        return;
+      }
+      else // time to calculate if schedule is feasible;
+      {
+        for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it)
+        {
+          //std::cout<<" sender: "<< it->sender <<" receiver: "<< it->receiver <<" send_count: "<< it->send_count <<" receive_count: "<< it->receive_count <<std::endl;
+          if ( it->receive_count / it->send_count < DESIRED_DATA_PDR)
+          {
+            Simulator::RegisterScreamPremitive (true);
+            break;
+          }
+        }
+        Simulator::m_screamStatistics.clear ();
+        Simulator::CurrentTryTimes = 0;
+        Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
+      }
       std::cout<<m_self<<" function invokation: CalcScreamSchedule"<<" sream: "<<Simulator::CheckScreamPremitive ()<< std::endl;
+      // schedule fails
       if ( Simulator::CheckScreamPremitive () == true && Simulator::m_sendingLinks.size () > 1)
       {
-        //std::cout<<" before pop: "<<Simulator::m_sendingLinks.size () << std::endl;
         Simulator::m_sendingLinks.pop_back ();
-        //std::cout<<" after pop: "<<Simulator::m_sendingLinks.size () << std::endl;
       }
+      // schedule succeeded
       else if (Simulator::m_sendingLinks.size () > 1)
       {
         Simulator::RegisterFeasibleLink (Simulator::m_sendingLinks.back ());
       }
+      // try another schedule
       Simulator::RegisterScreamPremitive (false);
       // decide control link and control node
 
       int16_t i = Simulator::m_controlNodeId + 1;
-      //std::cout<<m_self<<" i= "<<i<<" control_node_id: "<< Simulator::m_controlNodeId<<" m_consideredNodeId: "<<m_consideredNodeId <<std::endl;
       if (m_consideredNodeId == NETWORK_SIZE)
       {
         m_consideredNodeId = 0;
@@ -4140,6 +4169,7 @@ rxPacket:
         }
         if (Simulator::CheckLinkScheduledAsControlLink (linkInfo.linkId) == false )
         {
+          // select node @i as  control node
           FeasibleSchedule feasibleSchedule;
           feasibleSchedule.controlLink = linkInfo.linkId;
           Simulator::m_sendingLinks.clear ();
@@ -4208,7 +4238,6 @@ rxPacket:
         std::cout<<" control_node: "<<Simulator::m_controlNodeId<<" control_link: "<< Simulator::m_controlLink << std::endl;
         return;
       }
-      Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
     }
 #endif
 
@@ -4217,10 +4246,12 @@ rxPacket:
     {
       TdmaLink linkInfo = Simulator::FindLinkBySender (m_self.ToString ());
       //FeasibleSchedule schedule = Simulator::GetScheduleByControlLink (Simulator::m_controlLink);
+      //if current link is in current trying schedule, send packets
       if ( find (Simulator::m_sendingLinks.begin (), Simulator::m_sendingLinks.end (), linkInfo.linkId) != Simulator::m_sendingLinks.end ())
       {
         TrySendProbePacket ();
       }
+      // here should update current_try_times
       if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 )
       {
         Simulator::Schedule (m_timeslot, &MacLow::CheckAndSendProbeMsg, this);
@@ -4235,6 +4266,7 @@ rxPacket:
 #if defined (SCREAM)
     void MacLow::TrySendProbePacket ()
     {
+      //std::cout<<m_self<<" in: TrySendProbePacket () " << std::endl;
       NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
       m_setLisenterCallback ();
 
@@ -4267,6 +4299,35 @@ rxPacket:
       //m_sendingCount ++;
       NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->IsStateIdle () == true);
       SendDataPacket ();
+
+
+      //std::cout<<m_self<<" Simulator::m_controlNodeId: "<<Simulator::m_controlNodeId<<" Simulator::m_controlLink: "<< Simulator::m_controlLink << std::endl;
+      if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 )
+      {
+        bool found = false;
+        for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it)
+        {
+          if (it->sender == m_self.ToString () && it->receiver == m_dataReceiverAddr.ToString ())
+          {
+            it->send_count += 1;
+            Simulator::CurrentTryTimes = it->send_count; 
+            //std::cout<<m_self<<" current_try_times, changed. value: " << Simulator::CurrentTryTimes<< std::endl;
+            found = true;
+            break;
+          }
+        }
+        if (found == false) 
+        {
+          ScreamStatisticsItem screamItem;
+          screamItem.sender = m_self.ToString ();
+          screamItem.receiver = m_dataReceiverAddr.ToString ();
+          screamItem.send_count = 1;
+          Simulator::CurrentTryTimes = screamItem.send_count;
+          //std::cout<<m_self<<" current_try_times, changed. value: " << Simulator::CurrentTryTimes<< std::endl;
+          screamItem.receive_count = 0;
+          Simulator::m_screamStatistics.push_back (screamItem);
+        }
+      }
     }
 #endif
 
