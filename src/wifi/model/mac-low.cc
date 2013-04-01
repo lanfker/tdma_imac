@@ -4303,6 +4303,18 @@ rxPacket:
     {
       //std::cout<<m_self<<" in: TrySendProbePacket () " << std::endl;
       NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
+      //After scream schedule calculationg is finished, we consider traffic pattern.
+      if (Simulator::Now () > Simulator::LearningTimeDuration && Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0)
+      {
+        if ( m_packetQueue.size () > 0 ) 
+        {
+          m_packetQueue.pop_back ();
+        }
+        else
+        {
+          return;
+        }
+      }
       m_setLisenterCallback ();
 
       //uint8_t payload[DATA_PACKET_PAYLOAD_LENGTH];
@@ -4345,7 +4357,7 @@ rxPacket:
           if (it->sender == m_self.ToString () && it->receiver == m_dataReceiverAddr.ToString ())
           {
             it->send_count += 1;
-            Simulator::CurrentTryTimes = it->send_count; 
+            Simulator::CurrentTryTimes = (uint32_t)it->send_count; 
             //std::cout<<m_self<<" current_try_times, changed. value: " << Simulator::CurrentTryTimes<< std::endl;
             found = true;
             break;
@@ -4357,7 +4369,7 @@ rxPacket:
           screamItem.sender = m_self.ToString ();
           screamItem.receiver = m_dataReceiverAddr.ToString ();
           screamItem.send_count = 1;
-          Simulator::CurrentTryTimes = screamItem.send_count;
+          Simulator::CurrentTryTimes = (uint32_t)screamItem.send_count;
           //std::cout<<m_self<<" current_try_times, changed. value: " << Simulator::CurrentTryTimes<< std::endl;
           screamItem.receive_count = 0;
           Simulator::m_screamStatistics.push_back (screamItem);
