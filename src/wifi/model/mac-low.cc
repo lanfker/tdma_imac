@@ -4146,7 +4146,11 @@ rxPacket:
     void MacLow::CalcScreamSchedule ()
     {
       // let every link have time to send MAX_TRY_TIMES of packets before draw conclusions 
-      //std::cout<<" currentTryTimes: "<<Simulator::CurrentTryTimes << std::endl;
+      //std::cout<<m_self<<" "<<Simulator::Now () <<" control_node: "<< Simulator::m_controlNodeId <<" control_link: "<< Simulator::m_controlLink << std::endl;
+      if (Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0 && Simulator::Now () > Simulator::LearningTimeDuration) //schedule finished
+      {
+        return;
+      }
       if ( Simulator::CurrentTryTimes != MAX_TRY_TIMES )
       {
         Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
