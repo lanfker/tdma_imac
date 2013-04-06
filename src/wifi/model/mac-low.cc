@@ -4161,7 +4161,7 @@ rxPacket:
         for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it)
         {
           //std::cout<<" sender: "<< it->sender <<" receiver: "<< it->receiver <<" send_count: "<< it->send_count <<" receive_count: "<< it->receive_count <<std::endl;
-          if ( it->receive_count / it->send_count < DESIRED_DATA_PDR)
+          if ( it->receive_count / it->send_count < 1)
           {
             Simulator::RegisterScreamPremitive (true);
             break;

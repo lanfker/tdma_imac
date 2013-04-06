@@ -70,7 +70,7 @@ const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds
 #define NI_QUANTILE_ESTIMATION_EWMA
 #endif
 #if defined (SCREAM)
-const uint32_t MAX_TRY_TIMES=20;
+const uint32_t MAX_TRY_TIMES=1;
 #endif
 
 const double NOISE_POWER_W = 4.01237e-13;
