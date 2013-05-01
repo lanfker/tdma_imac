@@ -1332,15 +1332,7 @@ namespace ns3 {
       uint8_t buffer[CONTROL_PAYLOAD_LENGTH];
       packet->CopyData (buffer, CONTROL_PAYLOAD_LENGTH);
       ProcessControlPayload (buffer, hdr);
-
-      //Simulator::ReceiverRegisterControlReliability (hdr.GetAddr2 ().ToString (), m_self.ToString ());
     }
-    /*
-    else if (Simulator::Now () >= Simulator::LearningTimeDuration && imacPhy->GetChannelNumber () == DATA_CHANNEL && hdr.GetAddr1 () != m_self)
-    {
-      std::cout<<Simulator::Now () <<" "<<m_self<<" in data channel, the data packet is for: "<<hdr.GetAddr1 () << std::endl;
-    }
-    */
 
     //_____________________________________________________________________________________________________________________
     //                       When receiving an ACK
@@ -1445,6 +1437,9 @@ namespace ns3 {
         }
 #else
         std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<< hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_edge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNodeId () << std::endl;
+#endif
+#if defined (CONVERGECAST)
+        m_packetQueue.push_back (1);
 #endif
         TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
 #ifdef CSMA_PRKS_HYBRID
@@ -3983,7 +3978,7 @@ rxPacket:
 
   void MacLow::GeneratePacket ()
   {
-    Time generationInterval = MilliSeconds (PACKET_GENERATION_INTERVAL); // every 50 ms
+    Time generationInterval = MilliSeconds (PACKET_GENERATION_INTERVAL); 
     //if (m_uniform.GetValue () <= m_packetGenreationProbability && m_packetQueue.size () <= QUEUE_SIZE)
     if (m_packetQueue.size () <= QUEUE_SIZE)
     {

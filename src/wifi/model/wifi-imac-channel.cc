@@ -195,5 +195,10 @@ double WifiImacChannel::GetRxPowerByDistance (double txPowerDbm, double distance
   return m_loss->GetObject <LogDistancePropagationLossModel> ()->GetReceivePowerByDistance (txPowerDbm, distance );
 }
 
+Vector WifiImacChannel::GetNodePosition (Mac48Address addr)
+{
+  Vector pos = m_phyList[ addr.GetNodeId () - 1]->GetMobility ()->GetObject<MobilityModel> ()->GetPosition ();
+  return pos;
+}
 
 } // namespace ns3

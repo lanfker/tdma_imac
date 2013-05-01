@@ -4,6 +4,7 @@
 #include <vector>
 #include <stdint.h>
 #include "ns3/packet.h"
+#include "ns3/vector.h"
 #include "wifi-channel.h"
 #include "wifi-mode.h"
 #include "wifi-preamble.h"
@@ -69,6 +70,7 @@ public:
 
   double GetDistanceBetweenNodes(Mac48Address src, Mac48Address dest) const;
   double GetRxPowerByDistance (double txPowerDbm, double distance);
+  Vector GetNodePosition (Mac48Address addr);
 
   // -----------------------------------------------------PRIVATE -------------------------------------
 

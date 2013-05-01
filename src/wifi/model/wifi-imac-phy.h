@@ -177,7 +177,6 @@ namespace ns3 {
        * link reliability. See the relationship between the SNR and PDR for more information
        *
        */
-      Mac48Address NeighborSelectionBySinr(double lowerBound, double upperBound);
       Mac48Address NeighborSelectionBySinr(double lowerBound);
       void ScheduleSwitchChannel (Time delay, uint16_t number); 
 

@@ -99,7 +99,7 @@ namespace ns3
         m_beaconCount ++;
         m_nextEvent = Simulator::Schedule (MilliSeconds ((uint64_t)m_settingDelay.GetValue ()), &ImacRandomTrafficGenerator::DoGenerate, this);
       }
-      else if ( Simulator::Now () < Seconds (40) ) 
+      else if ( Simulator::Now () < Seconds (100) ) 
       {
         Mac48Address receiver = phy->NeighborSelectionBySinr(NEIGHBOR_SELECTION_SNR_THRESHOLD); //
         if ( receiver != Mac48Address::GetBroadcast ())
@@ -116,7 +116,7 @@ namespace ns3
         phy->RegisterSignalMap ();
         m_nextEvent = Simulator::Schedule(MilliSeconds ((uint64_t)m_settingDelay.GetValue ()), &ImacRandomTrafficGenerator::DoGenerate, this);
       }
-      else if (Simulator::Now () > Seconds (40) && Simulator::Now () < Seconds (95) )
+      else if (Simulator::Now () > Seconds (40) && Simulator::Now () < Simulator::LearningTimeDuration )
       //share initial ER information
       {
         if (Simulator::m_linksClassified == false )
@@ -168,14 +168,6 @@ namespace ns3
       Mac48Address sender = Mac48Address (it->senderAddr.c_str ());
       Mac48Address receiver = Mac48Address (it->receiverAddr.c_str ());
       //   m_nodeLinkDetails
-      /*
-         typedef struct NodeLinkDetails
-         {
-         std::string addr;
-         TdmaLink selfInitiatedLink;
-         std::vector<TdmaLink> relatedLinks;
-         }
-      */
       uint32_t senderIndex = sender.GetNodeId ();
       Simulator::m_nodeLinkDetails [senderIndex].selfInitiatedLink = *it;
       Simulator::m_nodeLinkDetails [senderIndex].relatedLinks.push_back (*it);
@@ -183,21 +175,6 @@ namespace ns3
       uint32_t receiverIndex = receiver.GetNodeId ();
       Simulator::m_nodeLinkDetails [receiverIndex].relatedLinks.push_back (*it);
     }
-    /*
-    for (int32_t i = 0; i < Simulator::NodesCountUpperBound; ++ i)
-    {
-      if (Simulator::m_nodeLinkDetails[i].relatedLinks.size () != 0)
-      {
-        std::cout<<std::endl<<"---------For node: "<<i<<" -----------------: "<<std::endl;
-        std::cout<<"selfInitialtedLink: "<< Mac48Address (Simulator::m_nodeLinkDetails[i].selfInitiatedLink.senderAddr.c_str()).GetNodeId () <<
-          " ---> "<<Mac48Address (Simulator::m_nodeLinkDetails[i].selfInitiatedLink.receiverAddr.c_str()).GetNodeId () << std::endl;
-        for (std::vector<TdmaLink>::iterator it = Simulator::m_nodeLinkDetails[i].relatedLinks.begin (); it != Simulator::m_nodeLinkDetails[i].relatedLinks.end (); ++ it)
-        {
-          std::cout<<"relatedLinks: "<< Mac48Address (it->senderAddr.c_str ()).GetNodeId () <<" ---> "<<Mac48Address (it->receiverAddr.c_str ()).GetNodeId ()<<std::endl;
-        }
-      }
-    }
-    */
   }
 
 }

@@ -1,6 +1,9 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+#ifndef CONVERGECAST
+#define CONVERGECAST
+#endif
 /*
 #ifndef TX_POWER_HETEROGENEITY
 #define TX_POWER_HETEROGENEITY
@@ -13,9 +16,11 @@
 #endif
 */
 
+/*
 #ifndef SCREAM
 #define SCREAM
 #endif
+*/
 
 /*
 #ifndef MIXED_PDR_REQUIREMENTS
@@ -27,7 +32,9 @@
 //#define NO_PROTECTION
 
 #define RID_INITIAL_ER
-//#define ENABLE_RID
+
+#define ENABLE_RID  //Take effect in controller.cc
+
 #define MIN_VARIANCE_CONTROLLER
 
 //#define P_CONTROLLER_DESIRED_PDR
@@ -62,8 +69,8 @@ const double DESIRED_ACK_PDR = 0.9;
 #endif
 
 const int64_t PRIORITY_RESET_TIMESLOT = 100;
-const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds
-//const uint64_t PACKET_GENERATION_INTERVAL = 50; // milliseconds
+//const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds  (Heavy Traffic)
+const uint64_t PACKET_GENERATION_INTERVAL = 400; // milliseconds  (Light Traffic)
 
 //-------------------INTERFERENCE.H-----------------------
 #ifndef NI_QUANTILE_ESTIMATION_EWMA
@@ -125,9 +132,6 @@ const uint32_t DATA_TX_POWER_LEVEL = 0;
 #define MAX_POWER_LEVEL
 #endif
 */
-#ifndef ENABLE_D0
-#define ENABLE_D0
-#endif
 
 
 // ------------------------const define section ------------------------
@@ -139,7 +143,7 @@ const uint32_t DATA_PACKET_PAYLOAD_LENGTH = MAX_INFO_ITEM_SIZE_IN_DATA_PACKET * 
 const uint32_t ER_INFO_ITEM_CATEGORY_ONE = 1;
 const uint32_t ER_INFO_ITEM_CATEGORY_TWO = 2;
 #ifdef SMALL_NETWORK
-const uint16_t INVALID_SENDER = 130;
+const uint16_t INVALID_SENDER = 190;
 const uint16_t NETWORK_SIZE = 125;
 #endif
 

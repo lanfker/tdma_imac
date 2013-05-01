@@ -23,6 +23,7 @@
 #include "ns3/trace-source-accessor.h"
 #include "wifi-net-device.h"
 #include <math.h>
+#include "ns3/vector.h"
 #include "ns3/address.h"
 #include "wifi-mac-header.h"
 #include "ns3/object-vector.h"
@@ -644,13 +645,21 @@ switchChannel:
     {
       return returnAddress;
     }
-
     sort (m_signalMap.begin (), m_signalMap.end (), outSinrDecreasingCompare);
     std::vector< Ptr<SignalMap> >::const_iterator it = m_signalMap.begin();
     Ptr<SignalMap> currentNode = (*it);
+    Vector senderPosition = m_channel->GetNodePosition (m_self);
     for( ; it != m_signalMap.end(); ++ it)
-    {
-      if ((*it)->outSinr > lowerBound && ((*it)->outSinr - lowerBound) < (currentNode->outSinr - lowerBound))
+    { 
+      Vector receiverPosition = m_channel->GetNodePosition ((*it)->from);
+
+#if defined (CONVERGECAST)
+      if ((*it)->outSinr > lowerBound && ((*it)->outSinr - lowerBound) <= (currentNode->outSinr - lowerBound)
+          && (sqrt(senderPosition.x * senderPosition.x + senderPosition.y * senderPosition.y) >  sqrt(receiverPosition.x * receiverPosition.x + receiverPosition.y * receiverPosition.y)))
+#else
+
+      if ((*it)->outSinr > lowerBound && ((*it)->outSinr - lowerBound) <= (currentNode->outSinr - lowerBound))
+#endif
       {
         currentNode = (*it);
         returnAddress = (*it)->from;
@@ -702,38 +711,6 @@ switchChannel:
   }
 
 
-  /*
-   * param sinr The reference sinr by which we select neighbors.
-   * return the mac address of the selected node.
-   * added by Chuan
-   */
-  Mac48Address WifiImacPhy::NeighborSelectionBySinr(double lowerBound, double upperBound)
-  {
-    Mac48Address returnAddress = Mac48Address::GetBroadcast();
-    if (m_signalMap.size() == 0)
-    {
-      return returnAddress;
-    }
-
-    sort (m_signalMap.begin (), m_signalMap.end (), outSinrDecreasingCompare);
-    std::vector< Ptr<SignalMap> >::const_iterator it = m_signalMap.begin();
-    Ptr<SignalMap> currentNode = (*it);
-    for( ; it != m_signalMap.end(); ++ it)
-    {
-      if ((*it)->outSinr > lowerBound && ((*it)->outSinr - lowerBound) < (currentNode->outSinr - lowerBound) && (*it)->outSinr <= upperBound)
-      {
-        currentNode = (*it);
-        returnAddress = (*it)->from;
-      }
-    }
-#ifndef TX_POWER_HETEROGENEITY
-    sort (m_signalMap.begin (), m_signalMap.end (), myCompare);
-#else 
-    sort (m_signalMap.begin (), m_signalMap.end (), myInterferenceCompare);
-#endif
-
-    return returnAddress;
-  }
 
   /* Whenever the signal map changes, we invoke this method such that the trace source mechanism works.
    * added by Chuan
@@ -872,7 +849,10 @@ switchChannel:
               Ptr<SignalMap> item = CreateObject<SignalMap> ();
               double attenuation = 0.0;
               //-----------------------Broadcast message in the learning process ----------------------------//
-              attenuation = WifiImacPhy::GetPowerDbm ( m_initialPowerLevel ) + m_txGainDb - rxPowerDbm;
+	      if (hdr.GetAddr1 ().IsGroup () )
+	      {
+		attenuation = WifiImacPhy::GetPowerDbm ( m_initialPowerLevel ) + m_txGainDb - rxPowerDbm;
+	      }
               //std::cout<<Simulator::Now () <<" "<<m_self<<" atten: "<< attenuation << std::endl;
               if ( hdr.IsData () )
               {
