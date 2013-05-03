@@ -969,7 +969,7 @@ namespace ns3 {
       int64_t m_nextSendingSlot;
       std::vector<NextTxSlotInfo> m_nextTxSlotInfo;
       std::vector<NewErRxStatus> m_newErRxStatus;
-      bool m_newErEdgeReceivedFromReceiver;
+      uint32_t m_newErEdgeReceivedFromReceiver; //0: not received; 1: received ER from receiver; 2: send info back to RX; 3: ACK received again, denoting RX received the Info.
 
       /************************POWER CONTROL in TDMA **************************************************/
       uint32_t m_maxBiDirectionalErChangeInformTimes; 

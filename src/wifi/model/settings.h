@@ -45,7 +45,7 @@
 
 //------------------PDR-------------------
 #ifndef MIXED_PDR_REQUIREMENTS
-const double DESIRED_DATA_PDR = 0.9;
+const double DESIRED_DATA_PDR = 0.7;
 #endif
 const double DESIRED_ACK_PDR = 0.9;
 //Tx Probability

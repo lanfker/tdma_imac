@@ -367,7 +367,7 @@ namespace ns3 {
     m_packetGenreationProbability = DEFAULT_PACKET_GENERATION_PROBABILITY;
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::GeneratePacket, this );
     m_nextSendingSlot = 0; 
-    m_newErEdgeReceivedFromReceiver = false;
+    m_newErEdgeReceivedFromReceiver = 0;
 #if defined (SCREAM)
     Simulator::CurrentTryTimes = MAX_TRY_TIMES;
 #endif
@@ -1343,9 +1343,10 @@ namespace ns3 {
     {
       // packet size: 18, header size: 10, payload size: 4.
       NS_LOG_DEBUG ("receive ack from=" << m_currentHdr.GetAddr1 ());
-      if ( m_newErEdgeReceivedFromReceiver == true)
+      //uint32_t m_newErEdgeReceivedFromReceiver; 0: not received; 1: received ER from receiver; 2: send info back to RX; 
+      if ( m_newErEdgeReceivedFromReceiver == 2 )
       {
-        m_newErEdgeReceivedFromReceiver = false;
+        m_newErEdgeReceivedFromReceiver = 0;
       }
       // report ACK been received and update received ack seq number
       ReceiverAddressTag receiverAddress;
@@ -1455,6 +1456,7 @@ namespace ns3 {
           }
         }
 #else
+        std::cout<<m_self<<" er_rx_status: "<< GetErRxStatus (linkInfo.linkId ) << std::endl;
         if ( GetErRxStatus (linkInfo.linkId ) ==  true)
         {
           UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
@@ -2771,6 +2773,7 @@ rxPacket:
         {
           difference = seqNo - it->LastDataSequenceNo;
         }
+        //std::cout<<Simulator::Now () <<" "<< m_self<<" difference: "<< difference<< std::endl;
         if (difference >= m_estimatorWindow)
         {
           ErInfoItem payloadItem = GetErInfoItem (sender.GetNodeId (), receiver.GetNodeId (), true, true);
@@ -3110,7 +3113,7 @@ rxPacket:
         {
           if (m_self.GetNodeId () == it->sender)// received a new ER edge information item
           {
-            m_newErEdgeReceivedFromReceiver = true;
+            m_newErEdgeReceivedFromReceiver = 1;
           }
           //--------------------------------------------------------------------------------
           //              UPDATE INFO ITEM FIELDS
@@ -3452,9 +3455,10 @@ rxPacket:
     payload [max_size * item_size + 2] = ((controlChannelInterferenceDbm >> 4) & 0xff);
     payload [max_size * item_size + 3] = (m_nextSendingSlot - m_currentTimeslot) & 0xff;
     payload [max_size * item_size + 4] = ((m_nextSendingSlot - m_currentTimeslot) >> 8) & 0xff;
-    if (m_newErEdgeReceivedFromReceiver == true)
+    if (m_newErEdgeReceivedFromReceiver >= 1)
     {
       payload [max_size * item_size + 5] = 1;
+      m_newErEdgeReceivedFromReceiver = 2;
     }
     else
     {
