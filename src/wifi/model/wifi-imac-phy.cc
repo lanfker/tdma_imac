@@ -974,7 +974,8 @@ maybeCcaBusy:
     {
       if (GetChannelNumber () == CONTROL_CHANNEL)
       {
-        std::cout<<"control_txDuration: "<< txDuration <<" time: "<<Simulator::Now () <<" packet length: "<< pkt->GetSize ()<<" hdr length: "<< hdr.GetSize () << std::endl;
+        std::cout<<"15: "<< txDuration <<" "<<Simulator::Now () <<" "<< pkt->GetSize ()<<" "<< hdr.GetSize () << std::endl;
+        //std::cout<<"control_txDuration: "<< txDuration <<" time: "<<Simulator::Now () <<" packet length: "<< pkt->GetSize ()<<" hdr length: "<< hdr.GetSize () << std::endl;
       }
     }
     if (m_state->IsStateRx ())
@@ -1049,7 +1050,8 @@ maybeCcaBusy:
       {
         if (GetChannelNumber () == CONTROL_CHANNEL)
         {
-          std::cout<<m_self<<" "<<Simulator::Now () <<" control_txDuration: "<< txDuration  <<" packet length: "<< pkt->GetSize ()<<" hdr length: "<< hdr.GetSize () << std::endl;
+          std::cout<<"16: "<<m_self.GetNodeId ()<<" "<<Simulator::Now () <<" "<< txDuration  <<" "<< pkt->GetSize ()<<" "<< hdr.GetSize () << std::endl;
+          //std::cout<<m_self<<" "<<Simulator::Now () <<" control_txDuration: "<< txDuration  <<" packet length: "<< pkt->GetSize ()<<" hdr length: "<< hdr.GetSize () << std::endl;
         }
       }
       if (m_state->IsStateRx ())
@@ -1365,10 +1367,11 @@ maybeCcaBusy:
 #if defined (SCREAM)
         if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
         {
-          std::cout<<"from "<<hdr.GetAddr2 ()<<" to "<< m_self<<" snr=" << 10*log10(snrPer.snr) << ", per=" << snrPer.per <<" concurrentTxNO: "<<GetConcurrentTxNo ()<< std::endl;
+          //std::cout<<"from "<<hdr.GetAddr2 ()<<" to "<< m_self<<" snr=" << 10*log10(snrPer.snr) << ", per=" << snrPer.per <<" concurrentTxNO: "<<GetConcurrentTxNo ()<< std::endl;
+          std::cout<<"17: "<<hdr.GetAddr2 ().GetNodeId ()<<" "<< m_self.GetNodeId ()<<" " << 10*log10(snrPer.snr) << " " << snrPer.per <<" "<<GetConcurrentTxNo ()<< std::endl;
         }
 #else
-          std::cout<<"from "<<hdr.GetAddr2 ()<<" to "<< m_self<<" snr=" << 10*log10(snrPer.snr) << ", per=" << snrPer.per <<" concurrentTxNO: "<<GetConcurrentTxNo ()<< std::endl;
+          std::cout<<"17: "<<hdr.GetAddr2 ().GetNodeId ()<<" "<< m_self.GetNodeId ()<<" " << 10*log10(snrPer.snr) << " " << snrPer.per <<" "<<GetConcurrentTxNo ()<< std::endl;
 #endif
       }
 
@@ -1515,7 +1518,8 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
   {
     bool isEdgeFound = false;
     *edgeNode = Mac48Address::GetBroadcast ();
-    std::cout<<"delta interference: "<<deltaInterferenceW<<" last er edge interference power: " << lastErEdgeInterferenceW;
+    std::cout<<"18: "<<deltaInterferenceW<<" " << lastErEdgeInterferenceW;
+    //std::cout<<"delta interference: "<<deltaInterferenceW<<" last er edge interference power: " << lastErEdgeInterferenceW;
     m_erEdgeInterferenceW = lastErEdgeInterferenceW;
     double supposedInterferenceW = 0.0;
     if ( deltaInterferenceW < 0) // expand the ER region
@@ -1634,10 +1638,12 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
       }
     }
     double distance = m_channel->GetDistanceBetweenNodes(m_self, *edgeNode);
-    std::cout<<" new edge interference: "<< m_erEdgeInterferenceW<<" er_radius: "<<distance<< " er_size: "<< Simulator::ListNodesInEr (m_self.ToString (), m_erEdgeInterferenceW).size ()<<std::endl;
+    std::cout<<"19: "<< m_erEdgeInterferenceW<<" "<<distance<< " "<< Simulator::ListNodesInEr (m_self.ToString (), m_erEdgeInterferenceW).size ()<<std::endl;
+    //std::cout<<" new edge interference: "<< m_erEdgeInterferenceW<<" er_radius: "<<distance<< " er_size: "<< Simulator::ListNodesInEr (m_self.ToString (), m_erEdgeInterferenceW).size ()<<std::endl;
     if ( lastErEdgeInterferenceW == m_erEdgeInterferenceW && deltaInterferenceW != 0)
     {
-      std::cout<<" equal  happens! "<<" is edge found? "<<isEdgeFound <<std::endl;
+      std::cout<<"20: "<<isEdgeFound <<std::endl;
+      //std::cout<<" equal  happens! "<<" is edge found? "<<isEdgeFound <<std::endl;
     }
     return m_erEdgeInterferenceW;  // returned boundray interference is in the unit of Watt
   }

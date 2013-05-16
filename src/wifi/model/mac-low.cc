@@ -366,6 +366,24 @@ namespace ns3 {
     }
     m_packetGenreationProbability = DEFAULT_PACKET_GENERATION_PROBABILITY;
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::GeneratePacket, this );
+#if defined (PARAMETER_DYNAMICS)
+    Simulator::Schedule (Seconds(200), &MacLow::SetPdrRequirement70, this);
+    Simulator::Schedule (Seconds(1700), &MacLow::SetPdrRequirement80, this);
+    Simulator::Schedule (Seconds(3200), &MacLow::SetPdrRequirement70, this);
+    Simulator::Schedule (Seconds(4700), &MacLow::SetPdrRequirement90, this);
+    Simulator::Schedule (Seconds(6200), &MacLow::SetPdrRequirement70, this);
+    Simulator::Schedule (Seconds(7700), &MacLow::SetPdrRequirement95, this);
+    Simulator::Schedule (Seconds(9200), &MacLow::SetPdrRequirement70, this);
+    Simulator::Schedule (Seconds(10700), &MacLow::SetPdrRequirement80, this);
+    Simulator::Schedule (Seconds(12200), &MacLow::SetPdrRequirement90, this);
+    Simulator::Schedule (Seconds(13700), &MacLow::SetPdrRequirement80, this);
+    Simulator::Schedule (Seconds(15200), &MacLow::SetPdrRequirement95, this);
+    Simulator::Schedule (Seconds(16700), &MacLow::SetPdrRequirement80, this);
+    Simulator::Schedule (Seconds(18200), &MacLow::SetPdrRequirement90, this);
+    Simulator::Schedule (Seconds(19700), &MacLow::SetPdrRequirement95, this);
+    Simulator::Schedule (Seconds(21200), &MacLow::SetPdrRequirement90, this); 
+    Simulator::SimulationStopTime = Seconds (21200);
+#endif
     m_nextSendingSlot = 0; 
     m_newErEdgeReceivedFromReceiver = 0;
 #if defined (SCREAM)
@@ -769,7 +787,6 @@ namespace ns3 {
         return *it;
       }
     }
-    //std::cout<<m_self<<" did not find item: line 697"<<std::endl;
     NextTxSlotInfo nullInfo;
     nullInfo.linkId = 0;
     nullInfo.nextSlotFromSender = UNDEFINED_NEXT_TX_SLOT;
@@ -945,7 +962,6 @@ namespace ns3 {
           // once there is a record which says the node should be in data channel in the current timeslot, let it in data channel;
         {
           nodeStatus = true;
-          //std::cout<<m_self<<" normal receiving!"<<std::endl;
           if (nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot)
           {
             UpdateNextRxSlot ( maxLink.linkId, UNDEFINED_NEXT_TX_SLOT, true);
@@ -957,7 +973,6 @@ namespace ns3 {
         }
         else
         {
-          //std::cout<<m_self<<" in control channel"<<std::endl;
           nodeStatus = false;
         }
         if (nodeStatus == true ) // as receiver
@@ -969,7 +984,6 @@ namespace ns3 {
           {
             m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
             m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
-            //std::cout<<m_self<<" actually in data channel"<<std::endl;
           }
         } // failed to have the maximum priority, try to send control signal
         else if (m_controlInformation.size () != 0 )
@@ -1200,7 +1214,6 @@ namespace ns3 {
     {
       if (imacPhy->GetChannelNumber () == DATA_CHANNEL )
       {
-        //std::cout<<m_self<<" clear local vector for sender: "<<hdr.GetAddr2 ()<<std::endl;
         ClearNextRxSlot (linkInfo.linkId);
         UpdateConservativeStatus (linkInfo.linkId, false); // no longer be conservative
       }
@@ -1346,6 +1359,10 @@ namespace ns3 {
       //uint32_t m_newErEdgeReceivedFromReceiver; 0: not received; 1: received ER from receiver; 2: send info back to RX; 
       if ( m_newErEdgeReceivedFromReceiver == 2 )
       {
+        m_newErEdgeReceivedFromReceiver = 3;
+      }
+      else if (m_newErEdgeReceivedFromReceiver == 3)
+      {
         m_newErEdgeReceivedFromReceiver = 0;
       }
       // report ACK been received and update received ack seq number
@@ -1365,13 +1382,14 @@ namespace ns3 {
         nextSlotFromReceiver += m_currentTimeslot;
         UpdateNextRxSlot (linkInfo.linkId,nextSlotFromReceiver , false);
 
+        //std::cout<<"4: "<<Simulator::Now ()<<" ack from " << ackSenderAddress      << " to "<<m_self <<" is received" <<std::endl;
 #if defined (SCREAM)
         if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
         {
-          std::cout<<"4: "<<Simulator::Now ()<<" ack from " << ackSenderAddress << " to "<<m_self <<" is received" <<std::endl;
+          std::cout<<"4: "<<Simulator::Now ()<<" " << ackSenderAddress.GetNodeId () << " "<<m_self.GetNodeId () <<std::endl;
         }
 #else
-        std::cout<<"4: "<<Simulator::Now ()<<" ack from " << ackSenderAddress << " to "<<m_self <<" is received" <<std::endl;
+        std::cout<<"4: "<<Simulator::Now ()<<" " << ackSenderAddress.GetNodeId () << " "<<m_self.GetNodeId () <<std::endl;
 #endif
 
         AckSequenceNoTag ackSequenceNoTag; 
@@ -1431,13 +1449,14 @@ namespace ns3 {
       {
         //for data, Addr2 is the data link sender, and addr1==@m_self is the data link receiver
         LinkEstimatorItem estimatorItem = GetEstimatorTableItemByNeighborAddr (hdr.GetAddr2 (), m_self);
+         //std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<     < hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_e     dge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNode     Id () << std::endl;
 #if defined (SCREAM)
         if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
         {
-          std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<< hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_edge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNodeId () << std::endl;
+          std::cout<<"2: "<<Simulator::Now () <<" "<< hdr.GetAddr2 ().GetNodeId ()<<" "<<m_self<<" "<< hdr.GetSequenceNumber ()<<" "<< estimatorItem.LastDataErEdgeInterferenceW<<" "<<m_self.GetNodeId () << std::endl;
         }
 #else
-        std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<< hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_edge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNodeId () << std::endl;
+        std::cout<<"2: "<<Simulator::Now () <<" "<< hdr.GetAddr2 ().GetNodeId ()<<" "<<m_self.GetNodeId ()<<" "<< hdr.GetSequenceNumber ()<<" "<< estimatorItem.LastDataErEdgeInterferenceW<<" "<<m_self.GetNodeId () << std::endl;
 #endif
 #if defined (CONVERGECAST)
         m_packetQueue.push_back (1);
@@ -1456,7 +1475,6 @@ namespace ns3 {
           }
         }
 #else
-        std::cout<<m_self<<" er_rx_status: "<< GetErRxStatus (linkInfo.linkId ) << std::endl;
         if ( GetErRxStatus (linkInfo.linkId ) ==  true)
         {
           UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
@@ -1806,17 +1824,12 @@ rxPacket:
         if ( Simulator::Now () >= Simulator::LearningTimeDuration )
         {
           Ptr<SignalMap> signalMapItem = imacPhy->GetSignalMapItem (hdr->GetAddr1 ());
-          //std::cout<<m_self<< " data_packet tx_power: "<< tx_power<<" sender: "<< hdr->GetAddr2 () <<" receiver: "<< hdr->GetAddr1 () <<" singalMap.snr: "<< signalMapItem->inSinr << std::endl;
         }
         imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
       }
       else if (hdr->IsAck ())
       {
         double tx_power = imacPhy-> GetPowerDbmWithFixedSnr (hdr->GetAddr1 (), m_self);
-        if ( Simulator::Now () >= Simulator::LearningTimeDuration )
-        {
-          //std::cout<<m_self<< "ack_packet tx_power: "<< tx_power<<" sender: "<< m_self <<" receiver: "<< hdr->GetAddr1 () << std::endl;
-        }
         imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
       }
     }
@@ -1875,7 +1888,8 @@ rxPacket:
         m_maxBiDirectionalErChangeInformTimes --;
       }
       m_previousSendingPower = txPower;
-      std::cout<<m_self<<" "<< Simulator::Now () <<" transmission power for control signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
+      //std::cout<<m_self<<" "<< Simulator::Now () <<" transmission power for con     trol signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
+      std::cout<<"5: "<<m_self.GetNodeId ()<<" "<< Simulator::Now () <<" "<< txPower<<" "<< maxNI << std::endl;
 #endif
 #ifdef MAX_POWER_LEVEL
       uint8_t txPower = MAX_TX_POWER_LEVEL;
@@ -2124,13 +2138,14 @@ rxPacket:
     m_currentPacket->AddTrailer (fcs);
     if (Simulator::Now () >= Simulator::LearningTimeDuration && m_phy->GetChannelNumber () == DATA_CHANNEL) // when node is in data channel, type this message
     {
+      //std::cout<<"1: " <<Simulator::Now ()<<" sending data packet from: "<<m_     self<<" to: "<<m_currentHdr.GetAddr1 () <<" seq: "<<m_currentHdr.GetSequenceNum     ber () <<"  with outSnr: "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrF     orDest (m_currentHdr.GetAddr1 ()) <<" nodeid: "<<m_self.GetNodeId () <<std::end     l;
 #if defined (SCREAM)
       if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
       {
-        std::cout<<"1: " <<Simulator::Now ()<<" sending data packet from: "<<m_self<<" to: "<<m_currentHdr.GetAddr1 () <<" seq: "<<m_currentHdr.GetSequenceNumber () <<"  with outSnr: "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" nodeid: "<<m_self.GetNodeId () <<std::endl;
+        std::cout<<"1: " <<Simulator::Now ()<<" "<<m_self.GetNodeId ()<<" "<<m_currentHdr.GetAddr1 ().GetNodeId () <<" "<<m_currentHdr.GetSequenceNumber () <<" "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" "<<m_self.GetNodeId () <<std::endl;
       }
 #else
-      std::cout<<"1: " <<Simulator::Now ()<<" sending data packet from: "<<m_self<<" to: "<<m_currentHdr.GetAddr1 () <<" seq: "<<m_currentHdr.GetSequenceNumber () <<"  with outSnr: "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" nodeid: "<<m_self.GetNodeId () <<std::endl;
+      std::cout<<"1: " <<Simulator::Now ()<<" "<<m_self.GetNodeId ()<<" "<<m_currentHdr.GetAddr1 ().GetNodeId () <<" "<<m_currentHdr.GetSequenceNumber () <<" "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" "<<m_self.GetNodeId () <<std::endl;
 #endif
     }
     ForwardDown (m_currentPacket, &m_currentHdr, dataTxMode);
@@ -2288,12 +2303,13 @@ rxPacket:
     if (Simulator::Now () >= Simulator::LearningTimeDuration)
     {
 #if defined (SCREAM)
+      //std::cout<<"3: "<<Simulator::Now ()<<" sending ack back to: "<<source<<      " from: "<<m_self<<std::endl;
       if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
       {
-        std::cout<<"3: "<<Simulator::Now ()<<" sending ack back to: "<<source<< " from: "<<m_self<<std::endl;
+        std::cout<<"3: "<<Simulator::Now ()<<" "<<source.GetNodeId ()<< " "<<m_self.GetNodeId ()<<std::endl;
       }
 #else
-      std::cout<<"3: "<<Simulator::Now ()<<" sending ack back to: "<<source<< " from: "<<m_self<<std::endl;
+      std::cout<<"3: "<<Simulator::Now ()<<" "<<source.GetNodeId ()<< " "<<m_self.GetNodeId ()<<std::endl;
 
 #endif
       m_sendingCount ++;
@@ -2773,7 +2789,6 @@ rxPacket:
         {
           difference = seqNo - it->LastDataSequenceNo;
         }
-        //std::cout<<Simulator::Now () <<" "<< m_self<<" difference: "<< difference<< std::endl;
         if (difference >= m_estimatorWindow)
         {
           ErInfoItem payloadItem = GetErInfoItem (sender.GetNodeId (), receiver.GetNodeId (), true, true);
@@ -2792,10 +2807,12 @@ rxPacket:
           if (estimatedPdr >= m_desiredDataPdr && payloadItem.risingAchieved == false)
           {
             payloadItem.risingAchieved = true;
-            std::cout<<m_self<<" from: "<<sender<<" rising time achieved" << std::endl;
+             //std::cout<<m_self<<" from: "<<sender<<" rising time achieved" << st     d::endl;
+            std::cout<<"6: "<<m_self.GetNodeId ()<<" "<<sender.GetNodeId ()<< std::endl; // rising time achieved
           }
           it->ReceivedDataPacketNumbers.clear ();
-          std::cout<<m_self<<" from: "<<sender<<" real segment pdr: "<< receivedCount / (double)difference << std::endl;
+          //std::cout<<m_self<<" from: "<<sender<<" real segment pdr: "<< receive     dCount / (double)difference << std::endl;
+          std::cout<<"7: "<<m_self.GetNodeId ()<<" "<<sender.GetNodeId ()<<" "<< receivedCount / (double)difference << std::endl; // real segment pdr
 #ifdef CSMA_PRKS_HYBRID
           return;
 #endif
@@ -2826,7 +2843,8 @@ rxPacket:
           if (linkMetaData.interferencePreviousDbm != 0 && linkMetaData.interferenceNowDbm != 0)
           {
             deltaInterferenceDb = m_minVarController.GetDeltaInterference (m_desiredDataPdr, it->DataPdr, estimatedPdr, conditionTwoMeet);
-            std::cout<<m_self<<" from: "<<sender<<" desiredPdr: "<<m_desiredDataPdr << " ewmaCurrentPdr: "<<it->DataPdr << " estimatedCurrentPdr: "<< estimatedPdr <<" deltaInterferenceDb: "<<deltaInterferenceDb<< std::endl;
+            //std::cout<<m_self<<" from: "<<sender<<" desiredPdr: "<<m_desiredDat     aPdr << " ewmaCurrentPdr: "<<it->DataPdr << " estimatedCurrentPdr: "<< estimate     dPdr <<" deltaInterferenceDb: "<<deltaInterferenceDb<< std::endl;
+            std::cout<<"8: "<<m_self.GetNodeId ()<<" "<<sender.GetNodeId ()<<" "<<m_desiredDataPdr << " "<<it->DataPdr << " "<< estimatedPdr <<" "<<deltaInterferenceDb<< std::endl;
           }
           if ( linkMetaData.interferencePreviousDbm == 0 || linkMetaData.interferenceNowDbm == 0) // the first time we compute \Delta_I
           {
@@ -2845,19 +2863,23 @@ rxPacket:
             double actualDeltaU = deltaIM - previousDeltaIR;
 
 
-            std::cout<<m_self<<" from: "<< sender<<" previous muBWatt: "<< linkMetaData.muBWatt<< " delta_I_m: "<<deltaIM <<" computed_delta_I(dB): "<<deltaInterferenceDb<<" actual delta_U: "<<actualDeltaU <<" previousDeltaIR: "<<previousDeltaIR;
+            //std::cout<<m_self<<" from: "<< sender<<" previous muBWatt: "<< link     MetaData.muBWatt<< " delta_I_m: "<<deltaIM <<" computed_delta_I(dB): "<<deltaIn     terferenceDb<<" actual delta_U: "<<actualDeltaU <<" previousDeltaIR: "<<previou     sDeltaIR;
+            std::cout<<"9: "<<m_self.GetNodeId ()<<" "<< sender.GetNodeId ()<<" "<< linkMetaData.muBWatt<< " "<<deltaIM <<" "<<deltaInterferenceDb<<" "<<actualDeltaU <<" "<<previousDeltaIR;
             //linkMetaData.muBWatt = (1 - m_ewmaCoefficient) * actualDeltaU  + m_ewmaCoefficient * linkMetaData.muBWatt;
             linkMetaData.muBWatt = 0; 
-            std::cout<<" new muBWatt: "<< linkMetaData.muBWatt<<std::endl;
+            //std::cout<<" new muBWatt: "<< linkMetaData.muBWatt<<std::endl;
+            std::cout<<"10: "<< linkMetaData.muBWatt<<std::endl;
             linkMetaData.lastComputedDeltaInterferenceDb = deltaInterferenceDb;
           }
           expectedInterferenceDbm = tempPhy->WToDbm (it->DataInterferenceW + tempPhy->GetCurrentNoiseW ()) + deltaInterferenceDb;
           expectedInterferenceWatt = tempPhy->DbmToW (expectedInterferenceDbm);
           deltaInterferenceWatt = expectedInterferenceWatt - it->DataInterferenceW  - tempPhy->GetCurrentNoiseW ()- linkMetaData.muBWatt;
-          std::cout<<m_self<<" from: "<<sender<< " expected interference "<< expectedInterferenceWatt<< " newDelta_I_R: "<<deltaInterferenceWatt<<" deltaInterferenceW before muBWatt: "<<expectedInterferenceWatt - it->DataInterferenceW  - tempPhy->GetCurrentNoiseW ()<< " interferenceW: "<<it->DataInterferenceW  + tempPhy->GetCurrentNoiseW ()<<" erSize: "<<tempPhy->GetErSize (it->LastDataErEdgeInterferenceW)<< " concurrentTxNO: "<< tempPhy->GetConcurrentTxNo ()<<" pure_interferenceW: "<<it->DataInterferenceW << std::endl; 
+          //std::cout<<m_self<<" from: "<<sender<< " expected interference "<< ex     pectedInterferenceWatt<< " newDelta_I_R: "<<deltaInterferenceWatt<<" deltaInter     ferenceW before muBWatt: "<<expectedInterferenceWatt - it->DataInterferenceW  -      tempPhy->GetCurrentNoiseW ()<< " interferenceW: "<<it->DataInterferenceW  + te     mpPhy->GetCurrentNoiseW ()<<" erSize: "<<tempPhy->GetErSize (it->LastDataErEdge     InterferenceW)<< " concurrentTxNO: "<< tempPhy->GetConcurrentTxNo ()<<" pure_in     terferenceW: "<<it->DataInterferenceW << std::endl;
+          std::cout<<"11: "<<m_self.GetNodeId ()<<" "<<sender.GetNodeId ()<< " "<< expectedInterferenceWatt<< " "<<deltaInterferenceWatt<<" "<<expectedInterferenceWatt - it->DataInterferenceW  - tempPhy->GetCurrentNoiseW ()<< " "<<it->DataInterferenceW  + tempPhy->GetCurrentNoiseW ()<<" "<<tempPhy->GetErSize (it->LastDataErEdgeInterferenceW)<< " "<< tempPhy->GetConcurrentTxNo ()<<" "<<it->DataInterferenceW << std::endl; 
           if (deltaInterferenceDb != 0 && deltaInterferenceWatt == 0)
           {
-            std::cout<<" abnormal: delta_interference_db: "<< deltaInterferenceDb <<" expected_interference_watt: "<<expectedInterferenceWatt << " currentInterference: "<<it->DataInterferenceW + tempPhy->GetCurrentNoiseW () <<" delta_interference_watt: "<< (expectedInterferenceWatt - it->DataInterferenceW - tempPhy->GetCurrentNoiseW ()) <<std::endl;
+            //std::cout<<" abnormal: delta_interference_db: "<< deltaInterference     Db <<" expected_interference_watt: "<<expectedInterferenceWatt << " currentInte     rference: "<<it->DataInterferenceW + tempPhy->GetCurrentNoiseW () <<" delta_int     erference_watt: "<< (expectedInterferenceWatt - it->DataInterferenceW - tempPhy     ->GetCurrentNoiseW ()) <<std::endl;
+            std::cout<<"12: "<< deltaInterferenceDb <<" "<<expectedInterferenceWatt << " "<<it->DataInterferenceW + tempPhy->GetCurrentNoiseW () <<" "<< (expectedInterferenceWatt - it->DataInterferenceW - tempPhy->GetCurrentNoiseW ()) <<std::endl;
           }
 #endif
 #ifdef P_CONTROLLER_DESIRED_PDR
@@ -2866,7 +2888,8 @@ rxPacket:
           expectedInterferenceDbm = tempPhy->WToDbm (it->DataInterferenceW + tempPhy->GetCurrentNoiseW ()) + deltaInterferenceDb;
           expectedInterferenceWatt = tempPhy->DbmToW (expectedInterferenceDbm);
           deltaInterferenceWatt = expectedInterferenceWatt - it->DataInterferenceW  - tempPhy->GetCurrentNoiseW ();
-          std::cout<<"P1_controller: "<<"current_pdr: "<< estimatedPdr <<" delta_interference_db: "<< deltaInterferenceDb<<" erSize: "<<tempPhy->GetErSize (it->LastDataErEdgeInterferenceW)<<" expected_interference: "<<expectedInterferenceWatt << std::endl;
+          //std::cout<<"P1_controller: "<<"current_pdr: "<< estimatedPdr <<" delt     a_interference_db: "<< deltaInterferenceDb<<" erSize: "<<tempPhy->GetErSize (it     ->LastDataErEdgeInterferenceW)<<" expected_interference: "<<expectedInterferenc     eWatt << std::endl;
+          std::cout<<"13: "<<estimatedPdr <<" "<< deltaInterferenceDb<<" "<<tempPhy->GetErSize (it->LastDataErEdgeInterferenceW)<<" "<<expectedInterferenceWatt << std::endl;
 #endif
 
 #ifdef P_CONTROLLER_REFERENCE_I
@@ -2881,7 +2904,8 @@ rxPacket:
           expectedInterferenceDbm = tempPhy->WToDbm (it->DataInterferenceW + tempPhy->GetCurrentNoiseW ()) + deltaInterferenceDb;
           expectedInterferenceWatt = tempPhy->DbmToW (expectedInterferenceDbm);
           deltaInterferenceWatt = expectedInterferenceWatt - it->DataInterferenceW  - tempPhy->GetCurrentNoiseW ();
-          std::cout<<"P2_controller: "<<"current_pdr: "<< estimatedPdr <<" delta_interference_db: "<< deltaInterferenceDb<<" erSize: "<<tempPhy->GetErSize (it->LastDataErEdgeInterferenceW)<<" expected_interference: "<<expectedInterferenceWatt<<" rx_power: "<<supposedRxPowerDbm <<" current_ni: "<<currentNplusI << std::endl;
+          //std::cout<<"P2_controller: "<<"current_pdr: "<< estimatedPdr <<" delt     a_interference_db: "<< deltaInterferenceDb<<" erSize: "<<tempPhy->GetErSize (it     ->LastDataErEdgeInterferenceW)<<" expected_interference: "<<expectedInterferenc     eWatt<<" rx_power: "<<supposedRxPowerDbm <<" current_ni: "<<currentNplusI << st     d::endl;
+          std::cout<<"14: "<< estimatedPdr <<" "<< deltaInterferenceDb<<" "<<tempPhy->GetErSize (it->LastDataErEdgeInterferenceW)<<" "<<expectedInterferenceWatt<<" "<<supposedRxPowerDbm <<" "<<currentNplusI << std::endl;
 #endif
 
 
@@ -3076,10 +3100,8 @@ rxPacket:
       TdmaLink linkInfo = Simulator::m_nodeLinkDetails[sender].selfInitiatedLink;
       tempInfo.linkId = linkInfo.linkId;
       tempInfo.nextSlot= nextRxSlot + m_currentTimeslot;
-      //std::cout<<"from: "<<hdr.GetAddr2 ()<<" sender: "<< sender <<" slot: "<<tempInfo.nextSlot<< std::endl;
       payload.rxVec.push_back (tempInfo);
     }
-    //std::cout<<m_self<<" payload.ErRxFromSender: "<< payload.ErRxFromSender << std::endl;
     return payload;
   }
 
@@ -3475,11 +3497,6 @@ rxPacket:
       payload [max_size * item_size + 8 + i + 1] = (sender >> 8) & 0x01;  // i = 2;
       payload [max_size * item_size + 8 + i + 1] |= ((it->nextSlot - m_currentTimeslot) & 0x7f) << 1;// 7 bits;
       payload [max_size * item_size + 8 + i + 2] = ((it->nextSlot - m_currentTimeslot) >> 7) & 0xff; // 8 bits;
-      //int64_t test = 0;
-      //test = payload [max_size * item_size + 8 + i + 2];
-      //test <<= 7;
-      //test |= (payload [max_size * item_size + 8 + i + 1] >> 1) &0x7f;
-      //std::cout<<"source: "<<m_self<<" sender: "<< sender <<" slot: "<<test + m_currentTimeslot<< std::endl;
       i += 3;
     }
     ptr = NULL;
@@ -4114,7 +4131,6 @@ rxPacket:
       return false; // the node is not a sender, CONSERVATIVE? later to consider
     }
     // the linkId won't be 0
-    //std::cout<<m_self<<" as receiver, conflicting size: "<< m_conflictingSet.size ()<<" sender is: "<< addr << std::endl;
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[addr.GetNodeId ()].selfInitiatedLink;
     for (int64_t slot = m_currentTimeslot; ; ++slot)
     {
@@ -4145,7 +4161,6 @@ rxPacket:
     void MacLow::CalcScreamSchedule ()
     {
       // let every link have time to send MAX_TRY_TIMES of packets before draw conclusions 
-      //std::cout<<m_self<<" "<<Simulator::Now () <<" control_node: "<< Simulator::m_controlNodeId <<" control_link: "<< Simulator::m_controlLink << std::endl;
       if (Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0 && Simulator::Now () > Simulator::LearningTimeDuration) //schedule finished
       {
         return;
@@ -4159,7 +4174,6 @@ rxPacket:
       {
         for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it)
         {
-          //std::cout<<" sender: "<< it->sender <<" receiver: "<< it->receiver <<" send_count: "<< it->send_count <<" receive_count: "<< it->receive_count <<std::endl;
           if ( it->receive_count / it->send_count < 1)
           {
             Simulator::RegisterScreamPremitive (true);
@@ -4170,7 +4184,6 @@ rxPacket:
         Simulator::CurrentTryTimes = 0;
         Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
       }
-      //std::cout<<m_self<<" function invokation: CalcScreamSchedule"<<" sream: "<<Simulator::CheckScreamPremitive ()<< std::endl;
       // schedule fails
       if ( Simulator::CheckScreamPremitive () == true && Simulator::m_sendingLinks.size () > 1)
       {
@@ -4196,7 +4209,6 @@ rxPacket:
       {
         
         TdmaLink linkInfo = Simulator::FindLinkBySender (IntToMacAddress (i));
-        //std::cout<<m_self<<" control_node_id: "<< Simulator::m_controlNodeId <<" addr: "<<IntToMacAddress (i) << " linkid: "<< linkInfo.linkId << " simulator:link: "<<Simulator::m_controlLink<<std::endl;
         if (linkInfo.linkId == 0)
         {
           continue;
@@ -4211,7 +4223,6 @@ rxPacket:
           Simulator::RegisterNewFeasibleSchedule (feasibleSchedule);
           Simulator::m_controlNodeId = i;
           Simulator::m_controlLink = linkInfo.linkId;
-          //std::cout<<m_self<< " control_node: "<< Simulator::m_controlNodeId<<" sending.size: "<<Simulator::m_sendingLinks.size () << std::endl;
           break;
         }
         if (i >= NETWORK_SIZE)
@@ -4221,14 +4232,11 @@ rxPacket:
       }
 
       // decide which link to add 
-      //std::cout<<" m_remainNodes.size: "<<m_remainNodes.size () << std::endl;
       while (m_remainNodes.size () != 0)
       {
         //m_remainNodes
         uint16_t pos = (uint16_t)(rand () % m_remainNodes.size ()) + 1;
-        //std::cout<<" pos: "<<pos <<" size: "<< m_remainNodes.size ()<<" control_node: "<<Simulator::m_controlNodeId <<std::endl;
         uint16_t random_id  =  GetFromPosition (pos);
-        //std::cout<<" m_remainNodes.size: "<<m_remainNodes.size () << std::endl;
         m_consideredNodeId = NETWORK_SIZE - m_remainNodes.size ();
         //m_remainNodes.push_back (random_id);
         TdmaLink linkInfo = Simulator::FindLinkBySender (IntToMacAddress (random_id));
@@ -4255,7 +4263,6 @@ rxPacket:
         }
 
       }
-      */
 
       std::cout<<" sending links: ";
       for (std::vector<int64_t>::iterator it = Simulator::m_sendingLinks.begin (); it != Simulator::m_sendingLinks.end (); ++ it)
@@ -4263,13 +4270,14 @@ rxPacket:
         std::cout<<*it<<" ";
       }
       std::cout<<" controlnode: "<< Simulator::m_controlNodeId<<std::endl;
+      */
 
       if (m_consideredNodeId >= NETWORK_SIZE - 1 && Simulator::m_controlNodeId == NETWORK_SIZE)
       {
         Simulator::m_controlNodeId = 0;
         Simulator::m_controlLink = 0;
-        Simulator::PrintScreamSchedules ();
-        std::cout<<" control_node: "<<Simulator::m_controlNodeId<<" control_link: "<< Simulator::m_controlLink << std::endl;
+        //Simulator::PrintScreamSchedules ();
+        //std::cout<<" control_node: "<<Simulator::m_controlNodeId<<" control_link: "<< Simulator::m_controlLink << std::endl;
         return;
       }
     }
@@ -4300,7 +4308,6 @@ rxPacket:
 #if defined (SCREAM)
     void MacLow::TrySendProbePacket ()
     {
-      //std::cout<<m_self<<" in: TrySendProbePacket () " << std::endl;
       NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
       //After scream schedule calculationg is finished, we consider traffic pattern.
       if (Simulator::Now () > Simulator::LearningTimeDuration && Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0)
@@ -4347,7 +4354,6 @@ rxPacket:
       SendDataPacket ();
 
 
-      //std::cout<<m_self<<" Simulator::m_controlNodeId: "<<Simulator::m_controlNodeId<<" Simulator::m_controlLink: "<< Simulator::m_controlLink << std::endl;
       if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 )
       {
         bool found = false;
@@ -4357,7 +4363,6 @@ rxPacket:
           {
             it->send_count += 1;
             Simulator::CurrentTryTimes = (uint32_t)it->send_count; 
-            //std::cout<<m_self<<" current_try_times, changed. value: " << Simulator::CurrentTryTimes<< std::endl;
             found = true;
             break;
           }
@@ -4369,7 +4374,6 @@ rxPacket:
           screamItem.receiver = m_dataReceiverAddr.ToString ();
           screamItem.send_count = 1;
           Simulator::CurrentTryTimes = (uint32_t)screamItem.send_count;
-          //std::cout<<m_self<<" current_try_times, changed. value: " << Simulator::CurrentTryTimes<< std::endl;
           screamItem.receive_count = 0;
           Simulator::m_screamStatistics.push_back (screamItem);
         }
@@ -4430,4 +4434,20 @@ rxPacket:
       return node_id;
     }
 #endif
+    void MacLow::SetPdrRequirement70 ()
+    {
+      m_desiredDataPdr = 0.7;
+    }
+    void MacLow::SetPdrRequirement80 ()
+    {
+      m_desiredDataPdr = 0.8;
+    }
+    void MacLow::SetPdrRequirement90 ()
+    {
+      m_desiredDataPdr = 0.9;
+    }
+    void MacLow::SetPdrRequirement95 ()
+    {
+      m_desiredDataPdr = 0.95;
+    }
   } // namespace ns3

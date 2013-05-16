@@ -1,9 +1,16 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+/*
 #ifndef CONVERGECAST
 #define CONVERGECAST
 #endif
+*/
+/*
+#ifndef PARAMETER_DYNAMICS
+#define PARAMETER_DYNAMICS
+#endif
+*/
 /*
 #ifndef TX_POWER_HETEROGENEITY
 #define TX_POWER_HETEROGENEITY
@@ -33,7 +40,7 @@
 
 #define RID_INITIAL_ER
 
-#define ENABLE_RID  //Take effect in controller.cc
+//#define ENABLE_RID  //Take effect in controller.cc
 
 #define MIN_VARIANCE_CONTROLLER
 
@@ -69,8 +76,8 @@ const double DESIRED_ACK_PDR = 0.9;
 #endif
 
 const int64_t PRIORITY_RESET_TIMESLOT = 100;
-//const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds  (Heavy Traffic)
-const uint64_t PACKET_GENERATION_INTERVAL = 400; // milliseconds  (Light Traffic)
+const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds  (Heavy Traffic)
+//const uint64_t PACKET_GENERATION_INTERVAL = 400; // milliseconds  (Light Traffic)
 
 //-------------------INTERFERENCE.H-----------------------
 #ifndef NI_QUANTILE_ESTIMATION_EWMA

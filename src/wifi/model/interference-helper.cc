@@ -304,7 +304,7 @@ double InterferenceHelper::GetInterference ()
 {
   if (  m_interferenceW <= 0)
   {
-    std::cout<<" interference power becomes negative, error happend! "<<std::endl;
+    //std::cout<<" interference power becomes negative, error happend! "<<std::endl;
     m_interferenceW = 1.000e-23; // never be negative
   }
   return m_interferenceW;
@@ -884,10 +884,6 @@ void InterferenceHelper::ControlChannel_SampleInterferenceWhileReceivingData ( )
       {
         interferenceDuringPacketReception = 0;
       }
-    }
-    if ( m_self.GetNodeId () == 44)
-    {
-      std::cout<<"NI_SAMPLE: "<<m_self<<" "<<interferenceDuringPacketReception<<std::endl;
     }
     m_dataInterferenceSamples_ControlChannel.push_back (interferenceDuringPacketReception);
     if ( m_dataInterferenceSamples_ControlChannel.size () == MAX_INTERFERENCE_SAMPLE_SIZE )

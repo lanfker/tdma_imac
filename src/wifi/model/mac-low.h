@@ -753,6 +753,10 @@ namespace ns3 {
       void ScreamNormalDataTransmission ();
       uint16_t GetFromPosition (uint16_t pos);
 #endif
+      void SetPdrRequirement70 ();
+      void SetPdrRequirement80 ();
+      void SetPdrRequirement90 ();
+      void SetPdrRequirement95 ();
 
       /****************************************** PRIVATE *********************************************/
     private:
