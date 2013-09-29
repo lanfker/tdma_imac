@@ -260,6 +260,11 @@ namespace ns3 {
       void SetThresholdSnr (double snr);
       double GetLinkDistance (Mac48Address sender, Mac48Address receiver );
       double GetPowerDbmWithFixedSnr (Mac48Address sender, Mac48Address receiver , double snr=8.9370);
+#if defined (CONVERGECAST)
+      uint32_t m_linkParent[NETWORK_SIZE];
+      double m_linkRequirement[NETWORK_SIZE];
+#endif
+      std::string IntToMacAddress (uint16_t nodeId);
       /********************************************************PRIVATE**********************************************************/
     private:
       WifiImacPhy (const WifiImacPhy &o);
@@ -316,6 +321,7 @@ namespace ns3 {
       InterferenceHelper m_interference;
       Time m_channelSwitchDelay;
       MathHelper m_mathHelper;
+
 
       double m_erEdgeInterferenceW; 
       Time m_sifsTime;

@@ -167,6 +167,7 @@ namespace ns3
     {
       Mac48Address sender = Mac48Address (it->senderAddr.c_str ());
       Mac48Address receiver = Mac48Address (it->receiverAddr.c_str ());
+      //std::cout<<"PRINT: "<<sender.GetNodeId ()<<" --> "<< receiver.GetNodeId () << std::endl;
       //   m_nodeLinkDetails
       uint32_t senderIndex = sender.GetNodeId ();
       Simulator::m_nodeLinkDetails [senderIndex].selfInitiatedLink = *it;

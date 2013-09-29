@@ -20,6 +20,7 @@
  */
 #include "ack-sequence-no-tag.h"
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <sstream>
 #include "ns3/assert.h"
@@ -366,6 +367,25 @@ namespace ns3 {
     }
     m_packetGenreationProbability = DEFAULT_PACKET_GENERATION_PROBABILITY;
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::GeneratePacket, this );
+
+#if defined(CONVERGECAST)
+    std::ifstream parentFile ("scratch/parent.txt");
+    int16_t parent;
+    while (parentFile>>parent)
+    {
+      m_linkParent.push_back (parent);
+    }
+    parentFile.close ();
+    std::ifstream requirementFile ("scratch/link_requirement.txt");
+    int16_t requirement;
+    while (requirementFile>>requirement)
+    {
+      m_linkRequirement.push_back (requirement);
+    }
+    requirementFile.close ();
+    //std::vector<int16_t> m_linkParent;
+    //std::vector<double> m_linkRequirement;
+#endif
 #if defined (PARAMETER_DYNAMICS)
     Simulator::Schedule (Seconds(200), &MacLow::SetPdrRequirement70, this);
     Simulator::Schedule (Seconds(1700), &MacLow::SetPdrRequirement80, this);
@@ -382,13 +402,15 @@ namespace ns3 {
     Simulator::Schedule (Seconds(18200), &MacLow::SetPdrRequirement90, this);
     Simulator::Schedule (Seconds(19700), &MacLow::SetPdrRequirement95, this);
     Simulator::Schedule (Seconds(21200), &MacLow::SetPdrRequirement90, this); 
-    Simulator::SimulationStopTime = Seconds (21200);
+    Simulator::SimulationStopTime = Seconds (22700);
 #endif
     m_nextSendingSlot = 0; 
     m_newErEdgeReceivedFromReceiver = 0;
+    m_retransmissionTimes = 0;
 #if defined (SCREAM)
     Simulator::CurrentTryTimes = MAX_TRY_TIMES;
 #endif
+
   }
 
   MacLow::~MacLow ()
@@ -494,7 +516,8 @@ namespace ns3 {
     m_phy->GetObject<WifiImacPhy> ()->SetNodeTxProbabilityCallback (MakeCallback (&MacLow::GetNodeTxProbability, this));
     m_phy->GetObject<WifiImacPhy> ()->SetAddress (m_self);
     double thresholdSnr = Controller().GetSnrByPdr (m_desiredDataPdr);
-    m_phy->GetObject<WifiImacPhy> ()->SetThresholdSnr (thresholdSnr);
+    //std::cout<<m_self<<" m_desiredDataPdr: "<<m_desiredDataPdr<< std::endl;
+    m_phy->GetObject<WifiImacPhy> ()->SetThresholdSnr (thresholdSnr); // For RID initial ER settings
     if (!m_phy->IsStateSwitching ())   
     {
       m_phy->SetChannelNumber (CONTROL_CHANNEL); // as by default
@@ -563,6 +586,8 @@ namespace ns3 {
 #else
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::CalcPriority, this);
 #endif
+
+
   }
   void MacLow::SetWifiRemoteStationManager (Ptr<WifiRemoteStationManager> manager)
   {
@@ -865,6 +890,7 @@ namespace ns3 {
    */
   void MacLow::CalcPriority ()
   {
+    //std::cout<<" link set size: "<< Simulator::ListAllLinks ().size () << std::endl;
     int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
     m_currentTimeslot = currentSlot;
     IncreaseSlotCount ();
@@ -953,6 +979,7 @@ namespace ns3 {
       {
         bool nodeStatus = false;
         NextTxSlotInfo nextRxSlotInfo = GetNextTxSlot (maxLink.linkId);
+        //std::cout<<" undefined tx_slot = " <<(nextRxSlotInfo.nextSlotFromSender == UNDEFINED_NEXT_TX_SLOT) << " be conservative: "<< nextRxSlotInfo.beConservative << std::endl;
         if ( nextRxSlotInfo.nextSlotFromSender == UNDEFINED_NEXT_TX_SLOT || nextRxSlotInfo.beConservative == true)
         {
           nodeStatus = true;  //HERE, WE ARE TRYING TO BE CONSERVATIVE
@@ -978,6 +1005,7 @@ namespace ns3 {
         if (nodeStatus == true ) // as receiver
         {
           m_nodeActive = true; 
+          //std::cout<<"in_data_channel: "<<m_self.GetNodeId () << std::endl;
           // once the node knows it could be active in the slot, stop computing
           Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
           if (!m_phy->IsStateSwitching ())   
@@ -1037,6 +1065,7 @@ namespace ns3 {
     if ( m_dataReceiverAddr == Mac48Address::GetBroadcast () && sender == m_self)
     {
       m_dataReceiverAddr = receiver;
+      //std::cout<<" sender: "<< m_self.GetNodeId () << " receiver: "<< m_dataReceiverAddr.GetNodeId () << std::endl;
     }
 
     std::vector<double> ers = GetErInforItemForLink (sender, receiver);// get ER information (edge interference)
@@ -1333,8 +1362,11 @@ namespace ns3 {
      */
     Ptr<WifiImacPhy> imacPhy = m_phy->GetObject<WifiImacPhy> ();
     Ptr<WifiImacChannel> channel = imacPhy->GetChannel()->GetObject<WifiImacChannel> ();
+    //std::cout<<"before: "<<packet->GetSize () << std::endl;
     WifiMacHeader hdr; 
     packet->RemoveHeader (hdr); 
+    //std::cout<<"after: "<<packet->GetSize () << std::endl;
+    //std::cout<<"after: "<<hdr.GetSize () << std::endl;
 
     //_____________________________________________________________________________________________________________________
     //                    WHEN receiving a control message
@@ -1354,6 +1386,28 @@ namespace ns3 {
         && hdr.GetAddr1 () == m_self
         && m_txParams.MustWaitAck () && imacPhy->GetChannelNumber () == DATA_CHANNEL) // ack received from the data channel
     {
+#if defined (CONVERGECAST)
+#if defined (SCREAM)
+      if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0)
+      {
+        if ( m_incrementReTxTimesEvent.IsExpired () == false )
+        {
+          m_incrementReTxTimesEvent.Cancel ();
+        }
+        std::cout<<Simulator::Now () <<" "<<m_self.GetNodeId ()<<" m_packetQueue.size: "<< m_packetQueue.size () << std::endl;
+        m_packetQueue.erase (m_packetQueue.begin ());
+        m_retransmissionTimes = 0;
+      }
+#else
+      if ( m_incrementReTxTimesEvent.IsExpired () == false )
+      {
+        m_incrementReTxTimesEvent.Cancel ();
+      }
+      std::cout<<Simulator::Now ()<<" " <<m_self.GetNodeId ()<<" m_packetQueue.size: "<< m_packetQueue.size () << std::endl;
+      m_packetQueue.erase (m_packetQueue.begin ());
+      m_retransmissionTimes = 0;
+#endif
+#endif
       // packet size: 18, header size: 10, payload size: 4.
       NS_LOG_DEBUG ("receive ack from=" << m_currentHdr.GetAddr1 ());
       //uint32_t m_newErEdgeReceivedFromReceiver; 0: not received; 1: received ER from receiver; 2: send info back to RX; 
@@ -1384,6 +1438,7 @@ namespace ns3 {
 
         //std::cout<<"4: "<<Simulator::Now ()<<" ack from " << ackSenderAddress      << " to "<<m_self <<" is received" <<std::endl;
 #if defined (SCREAM)
+        //std::cout<<"Simulator::m_controlLink: "<<Simulator::m_controlLink <<" Simulator::m_controlNodeId: " << Simulator::m_controlNodeId<< std::endl;
         if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
         {
           std::cout<<"4: "<<Simulator::Now ()<<" " << ackSenderAddress.GetNodeId () << " "<<m_self.GetNodeId () <<std::endl;
@@ -1411,6 +1466,7 @@ namespace ns3 {
       m_stationManager->ReportDataOk (m_currentHdr.GetAddr1 (), &m_currentHdr,
           rxSnr, txMode, tag.Get ());
       bool gotAck = false;
+      //std::cout<<m_self<<" mustWaitNormalAck: "<< m_txParams.MustWaitNormalAck () << std::endl;
       if (m_txParams.MustWaitNormalAck ()
           && m_normalAckTimeoutEvent.IsRunning ())
       {
@@ -1447,19 +1503,71 @@ namespace ns3 {
       // after learning process, data packet and in data channel
       if (Simulator::Now () >= Simulator::LearningTimeDuration && hdr.IsData ()) 
       {
+        //std::cout<<m_self.GetNodeId () <<" received " << std::endl;
+        //the parent of node 2 is at the index 1. Therefore, we need to use m_self.GetNodeId () - 1.
+#if defined(CONVERGECAST)
+        uint16_t parent = m_phy->GetObject<WifiImacPhy> () -> m_linkParent[m_self.GetNodeId () - 1];
+        m_desiredDataPdr = m_phy->GetObject<WifiImacPhy> () -> m_linkRequirement[parent - 1];
+        //std::cout<<"node: "<<m_self.GetNodeId () << " requirement: "<<m_desiredDataPdr << std::endl;
+#endif
         //for data, Addr2 is the data link sender, and addr1==@m_self is the data link receiver
         LinkEstimatorItem estimatorItem = GetEstimatorTableItemByNeighborAddr (hdr.GetAddr2 (), m_self);
          //std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<     < hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_e     dge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNode     Id () << std::endl;
 #if defined (SCREAM)
         if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
         {
-          std::cout<<"2: "<<Simulator::Now () <<" "<< hdr.GetAddr2 ().GetNodeId ()<<" "<<m_self<<" "<< hdr.GetSequenceNumber ()<<" "<< estimatorItem.LastDataErEdgeInterferenceW<<" "<<m_self.GetNodeId () << std::endl;
+          std::cout<<"2: "<<Simulator::Now () <<" "<< hdr.GetAddr2 ().GetNodeId ()<<" "<<m_self.GetNodeId ()<<" "<< hdr.GetSequenceNumber ()<<" "<< estimatorItem.LastDataErEdgeInterferenceW<<" "<<m_self.GetNodeId () <<" "<<packet->GetUid () << std::endl;
         }
 #else
-        std::cout<<"2: "<<Simulator::Now () <<" "<< hdr.GetAddr2 ().GetNodeId ()<<" "<<m_self.GetNodeId ()<<" "<< hdr.GetSequenceNumber ()<<" "<< estimatorItem.LastDataErEdgeInterferenceW<<" "<<m_self.GetNodeId () << std::endl;
+        std::cout<<"2: "<<Simulator::Now () <<" "<< hdr.GetAddr2 ().GetNodeId ()<<" "<<m_self.GetNodeId ()<<" "<< hdr.GetSequenceNumber ()<<" "<< estimatorItem.LastDataErEdgeInterferenceW<<" "<<m_self.GetNodeId () <<" "<<packet->GetUid () << std::endl;
 #endif
+        //std::cout<<Simulator::Now () <<" "<<m_self.GetNodeId () <<" queuesize: "<<m_packetQueue.size () <<std::endl;
 #if defined (CONVERGECAST)
-        m_packetQueue.push_back (1);
+        if (m_packetQueue.size () <= QUEUE_SIZE )
+        {
+          WifiMacTrailer fcs;
+          packet->RemoveTrailer (fcs);
+          //std::cout<<m_self.GetNodeId ()<< " push into queue, size: "<< packet->GetSize () << std::endl;
+#if defined (SCREAM)
+        if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
+        {
+          Ptr<Packet> s = packet->Copy (); 
+          if (IsDuplicatePacket  (s) != true)
+          {
+            std::cout<<" 1537: added here" << std::endl;
+            m_packetQueue.push_back (s);
+          }
+        }
+#else
+          Ptr<Packet> s = packet->Copy (); 
+          if (IsDuplicatePacket  (s) != true)
+          {
+            std::cout<<" 1545: added here" << std::endl;
+            m_packetQueue.push_back (s);
+          }
+#endif
+          //std::cout<<" original packet uid: "<< packet->GetUid () <<" copied packet uid: "<< s->GetUid () << std::endl;
+        }
+        /*
+        else
+        {
+          std::cout<<" queue_full."<<std::endl;
+        }
+        */
+        /*
+        for (uint32_t i = 0; i < m_packetQueue.size (); ++ i)
+        {
+          if ( m_packetQueue[i] != NULL)
+          {
+            std::cout<<" index: "<<i<<" id: "<<m_packetQueue[i]->GetUid ();
+          }
+          else
+          {
+            std::cout<<" index: "<<i<<" id: NULL";
+          }
+        }
+        std::cout<<std::endl;
+        */
 #endif
         TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
 #ifdef CSMA_PRKS_HYBRID
@@ -1889,7 +1997,7 @@ rxPacket:
       }
       m_previousSendingPower = txPower;
       //std::cout<<m_self<<" "<< Simulator::Now () <<" transmission power for con     trol signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
-      std::cout<<"5: "<<m_self.GetNodeId ()<<" "<< Simulator::Now () <<" "<< txPower<<" "<< maxNI << std::endl;
+      //std::cout<<"5: "<<m_self.GetNodeId ()<<" "<< Simulator::Now () <<" "<< txPower<<" "<< maxNI << std::endl;
 #endif
 #ifdef MAX_POWER_LEVEL
       uint8_t txPower = MAX_TX_POWER_LEVEL;
@@ -2142,14 +2250,27 @@ rxPacket:
 #if defined (SCREAM)
       if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
       {
-        std::cout<<"1: " <<Simulator::Now ()<<" "<<m_self.GetNodeId ()<<" "<<m_currentHdr.GetAddr1 ().GetNodeId () <<" "<<m_currentHdr.GetSequenceNumber () <<" "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" "<<m_self.GetNodeId () <<std::endl;
+        std::cout<<"1: " <<Simulator::Now ()<<" "<<m_self.GetNodeId ()<<" "<<m_currentHdr.GetAddr1 ().GetNodeId () <<" "<<m_currentHdr.GetSequenceNumber () <<" "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" "<<m_self.GetNodeId ()<<" "<<m_currentPacket->GetUid ()<<std::endl;
       }
 #else
-      std::cout<<"1: " <<Simulator::Now ()<<" "<<m_self.GetNodeId ()<<" "<<m_currentHdr.GetAddr1 ().GetNodeId () <<" "<<m_currentHdr.GetSequenceNumber () <<" "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" "<<m_self.GetNodeId () <<std::endl;
+      std::cout<<"1: " <<Simulator::Now ()<<" "<<m_self.GetNodeId ()<<" "<<m_currentHdr.GetAddr1 ().GetNodeId () <<" "<<m_currentHdr.GetSequenceNumber () <<" "<< m_phy->GetObject<WifiImacPhy> ()->GetOutBoundSinrForDest (m_currentHdr.GetAddr1 ()) <<" "<<m_self.GetNodeId () <<" "<<m_currentPacket->GetUid ()<<std::endl;
 #endif
     }
     ForwardDown (m_currentPacket, &m_currentHdr, dataTxMode);
     m_currentPacket = 0;
+#if defined (CONVERGECAST)
+#if defined (SCREAM)
+    if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 && Simulator::Now () > Simulator::LearningTimeDuration &&  m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL )
+    {
+      m_incrementReTxTimesEvent = Simulator::Schedule(MilliSeconds (6), &MacLow::IncrementReTransmissionTimes, this);
+    }
+#else
+    if (Simulator::Now () > Simulator::LearningTimeDuration &&  m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL)
+    {
+      m_incrementReTxTimesEvent = Simulator::Schedule(MilliSeconds (6), &MacLow::IncrementReTransmissionTimes, this);
+    }
+#endif
+#endif
   }
 
   bool MacLow::IsNavZero (void) const
@@ -2697,6 +2818,15 @@ rxPacket:
     newItem.previousAckErW = IMPOSSIBLE_ER;
     newItem.LastDataErEdgeInterferenceW = IMPOSSIBLE_ER; //Watt
     newItem.LastAckErEdgeInterferenceW = IMPOSSIBLE_ER; // the initial value
+    for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
+    {
+      if (it->sender == sender.GetNodeId () && it->receiver == receiver.GetNodeId ())
+      {
+        // here we only care about DATA ER since ACK ER is disabled in our implementation
+        newItem.previousAckErW = it->edgeInterferenceW;
+        newItem.LastDataErEdgeInterferenceW = it->edgeInterferenceW; //Watt
+      }
+    }
     newItem.DataInterferenceW = 0;
     newItem.AckInterferenceW = 0;
     return newItem;
@@ -2861,10 +2991,14 @@ rxPacket:
             double deltaIM = tempPhy->DbmToW (linkMetaData.interferenceNowDbm) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm);
             double previousDeltaIR = tempPhy->DbmToW (linkMetaData.interferencePreviousDbm + linkMetaData.lastComputedDeltaInterferenceDb) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm) - linkMetaData.muBWatt;
             double actualDeltaU = deltaIM - previousDeltaIR;
+#if defined (MU_ESTIMATION)
+            double deltaIU = tempPhy->DbmToW (linkMetaData.interferenceNowDbm) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm + linkMetaData.lastComputedDeltaInterferenceDb);
+            std::cout<<m_self.GetNodeId () <<" "<<Simulator::Now () <<" delta_I_U: "<<deltaIU<< std::endl; 
+#endif
 
 
             //std::cout<<m_self<<" from: "<< sender<<" previous muBWatt: "<< link     MetaData.muBWatt<< " delta_I_m: "<<deltaIM <<" computed_delta_I(dB): "<<deltaIn     terferenceDb<<" actual delta_U: "<<actualDeltaU <<" previousDeltaIR: "<<previou     sDeltaIR;
-            std::cout<<"9: "<<m_self.GetNodeId ()<<" "<< sender.GetNodeId ()<<" "<< linkMetaData.muBWatt<< " "<<deltaIM <<" "<<deltaInterferenceDb<<" "<<actualDeltaU <<" "<<previousDeltaIR;
+            std::cout<<"9: "<<m_self.GetNodeId ()<<" "<< sender.GetNodeId ()<<" "<< linkMetaData.muBWatt<< " "<<deltaIM <<" "<<deltaInterferenceDb<<" "<<actualDeltaU <<" "<<previousDeltaIR<<std::endl;
             //linkMetaData.muBWatt = (1 - m_ewmaCoefficient) * actualDeltaU  + m_ewmaCoefficient * linkMetaData.muBWatt;
             linkMetaData.muBWatt = 0; 
             //std::cout<<" new muBWatt: "<< linkMetaData.muBWatt<<std::endl;
@@ -3508,6 +3642,10 @@ rxPacket:
    */
   void MacLow::TrySendControlPacket ()
   {
+    if (m_phy->GetChannelNumber () == DATA_CHANNEL)
+    {
+      return;
+    }
     if ( m_phy->IsStateIdle ())
     {
       uint8_t payload[CONTROL_PAYLOAD_LENGTH];
@@ -3548,29 +3686,54 @@ rxPacket:
   void MacLow::GenerateDataPacketAndSend ()
   {  
     NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
+    Ptr<Packet> pkt = NULL;
     if ( m_packetQueue.size () > 0 ) // if there are no packets to send, just return;
     {
-      m_packetQueue.pop_back ();
+      pkt = m_packetQueue.front ();
     }
     else
     {
       return;
     }
+    CancelAllEvents ();
     m_setLisenterCallback ();
 
     uint8_t payload[DATA_PACKET_PAYLOAD_LENGTH];
     GenerateControlPayload (MAX_INFO_ITEM_SIZE_IN_DATA_PACKET, ER_INFO_ITEM_SIZE, payload);
 
-    Ptr<Packet> pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
+    if (pkt == NULL)
+    {
+      pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
+      m_packetQueue.front () = pkt;
+    }
+#ifdef PRKS  // default PRKS does not need packet re-transmission
+    m_packetQueue.erase (m_packetQueue.begin ()); 
+#endif
+    if (pkt != NULL && m_retransmissionTimes != 0) // if this transmission is actually for retransmission, we need to remove header and trailer since pkt is a pointer. In previous transmission, we have added header and trailer for this packet. If we do not remove header and trailer, we will end up with increasing packet size
+    {
+      WifiMacHeader _hdr; 
+      pkt->RemoveHeader (_hdr);
+      WifiMacTrailer _fcs;
+      pkt->RemoveTrailer (_fcs);
+    }
     //Ptr<Packet> pkt = Create<Packet> (DATA_PACKET_PAYLOAD_LENGTH); // packet size get from scratch/imac.cc
     WifiMacHeader hdr;
-    hdr.SetAddr2 (m_self);
     NS_ASSERT (!m_dataReceiverAddr.IsGroup ());
-    hdr.SetAddr1 (m_dataReceiverAddr);
     hdr.SetDsNotTo ();
     hdr.SetDsNotFrom ();
     hdr.SetFragmentNumber (0);
     hdr.SetNoRetry ();
+    //std::cout<<"self: "<<m_self.GetNodeId () <<" receiver: "<< m_dataReceiverAddr.GetNodeId () << std::endl;
+    /*
+    if (pkt != NULL)
+    {
+      pkt->PeekHeader (hdr);
+    }
+    */
+    hdr.SetAddr2 (m_self);
+    hdr.SetAddr1 (m_dataReceiverAddr);
+    //WifiMacTrailer fcs;
+    //pkt->AddTrailer (fcs);
 
     hdr.SetTypeData ();
     MacLowTransmissionParameters params;
@@ -3580,9 +3743,15 @@ rxPacket:
     params.DisableNextData ();
     m_currentPacket = pkt;
     m_currentHdr = hdr;
-    m_setPacketCallback (hdr, pkt);
     m_txParams = params;
     m_sendingCount ++;
+    /*
+    std::cout<<m_self.GetNodeId ()<<" m_retransmissionTimes: "<< m_retransmissionTimes << std::endl;
+    std::cout<<m_self.GetNodeId ()<<"  generate: before send, packet size: "<< pkt->GetSize () << std::endl;
+    std::cout<<m_self.GetNodeId ()<<"  generate: before send, header size: "<< hdr.GetSize () << std::endl;
+    */
+    m_setPacketCallback (hdr, pkt);
+    //std::cout<<" m_retransmissionTimes: "<< m_retransmissionTimes << std::endl;
     SendDataPacket ();
   }
   void MacLow::SetMacLowTransmissionListener (MacLowTransmissionListener *listener )
@@ -4000,10 +4169,14 @@ rxPacket:
   void MacLow::GeneratePacket ()
   {
     Time generationInterval = MilliSeconds (PACKET_GENERATION_INTERVAL); 
-    //if (m_uniform.GetValue () <= m_packetGenreationProbability && m_packetQueue.size () <= QUEUE_SIZE)
+    //if (m_uniform.GetValue () <= m_packetGenreationProbability && m_currentP_packetQueue.size () <= QUEUE_SIZE)
     if (m_packetQueue.size () <= QUEUE_SIZE)
     {
-      m_packetQueue.push_back (1);
+      Ptr<Packet> pkt = NULL;
+      m_packetQueue.push_back (pkt);
+    }
+    else {
+      std::cout<<" queue_full."<<std::endl;
     }
     if (Simulator::Now () > Simulator::SimulationStopTime)
     {
@@ -4269,8 +4442,8 @@ rxPacket:
       {
         std::cout<<*it<<" ";
       }
-      std::cout<<" controlnode: "<< Simulator::m_controlNodeId<<std::endl;
       */
+      //std::cout<<" controlnode: "<< Simulator::m_controlNodeId<<std::endl;
 
       if (m_consideredNodeId >= NETWORK_SIZE - 1 && Simulator::m_controlNodeId == NETWORK_SIZE)
       {
@@ -4310,11 +4483,12 @@ rxPacket:
     {
       NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
       //After scream schedule calculationg is finished, we consider traffic pattern.
+      Ptr<Packet> pkt = NULL;
       if (Simulator::Now () > Simulator::LearningTimeDuration && Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0)
       {
         if ( m_packetQueue.size () > 0 ) 
         {
-          m_packetQueue.pop_back ();
+          pkt = m_packetQueue.front ();
         }
         else
         {
@@ -4323,11 +4497,29 @@ rxPacket:
       }
       m_setLisenterCallback ();
 
+
+      if (pkt == NULL)
+      {
+        pkt = Create<Packet> (DATA_PACKET_PAYLOAD_LENGTH); // packet size get from scratch/imac.cc
+        //pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
+        if ( Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0)
+        {
+          m_packetQueue.front () = pkt;
+        }
+        //std::cout<<" assign value to the first element of queue vector. "<< std::endl;
+      }
+
+      if (pkt != NULL && m_retransmissionTimes != 0 && Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0) // if this transmission is actually for retransmission, we need to remove header and trailer since pkt is a pointer. In previous transmission, we have added header and trailer for this packet. If we do not remove header and trailer, we will end up with increasing packet size
+      {
+        WifiMacHeader _hdr; 
+        pkt->RemoveHeader (_hdr);
+        WifiMacTrailer _fcs;
+        pkt->RemoveTrailer (_fcs);
+      }
       //uint8_t payload[DATA_PACKET_PAYLOAD_LENGTH];
       //GenerateControlPayload (MAX_INFO_ITEM_SIZE_IN_DATA_PACKET, ER_INFO_ITEM_SIZE, payload);
 
       //Ptr<Packet> pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
-      Ptr<Packet> pkt = Create<Packet> (DATA_PACKET_PAYLOAD_LENGTH); // packet size get from scratch/imac.cc
       WifiMacHeader hdr;
       hdr.SetAddr2 (m_self);
       TdmaLink linkInfo = Simulator::FindLinkBySender (m_self.ToString ());
@@ -4347,6 +4539,9 @@ rxPacket:
       params.DisableNextData ();
       m_currentPacket = pkt;
       m_currentHdr = hdr;
+      std::cout<<m_self.GetNodeId ()<<" m_retransmissionTimes: "<< m_retransmissionTimes << std::endl;
+      std::cout<<m_self.GetNodeId ()<<" 4537 generate: before send, packet size: "<< pkt->GetSize () << std::endl;
+      std::cout<<m_self.GetNodeId ()<<" 4538 generate: before send, header size: "<< hdr.GetSize () << std::endl;
       m_setPacketCallback (hdr, pkt);
       m_txParams = params;
       //m_sendingCount ++;
@@ -4449,5 +4644,32 @@ rxPacket:
     void MacLow::SetPdrRequirement95 ()
     {
       m_desiredDataPdr = 0.95;
+    }
+
+    void MacLow::IncrementReTransmissionTimes ()
+    {
+      if (m_retransmissionTimes <= RETRANSMISSION_TIMES)
+      {
+        m_retransmissionTimes ++;
+      }
+      if (m_retransmissionTimes == RETRANSMISSION_TIMES + 1)
+      {
+        m_retransmissionTimes = 0;
+        if ( m_packetQueue.size () != 0)
+        {
+          m_packetQueue.erase (m_packetQueue.begin ()); // drop packet after maximum re-transmission times.
+        }
+      }
+    }
+    bool MacLow::IsDuplicatePacket (Ptr<Packet> s)
+    {
+      for (uint32_t i = 0; i < m_packetQueue.size (); ++ i)
+      {
+        if (m_packetQueue[i]->GetUid () == s->GetUid ())
+        {
+          return true;
+        }
+      }
+      return false;
     }
   } // namespace ns3

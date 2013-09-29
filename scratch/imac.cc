@@ -6,6 +6,7 @@
 #include "ns3/applications-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/log.h"
+#include "ns3/settings.h"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
@@ -15,7 +16,6 @@
 
 using namespace std;
 using namespace ns3;
-#define SMALL_NETWORK
 NS_LOG_COMPONENT_DEFINE("iMac");
 
 const uint32_t MAX_RANDOM_SEED = 100000;
@@ -35,18 +35,21 @@ int main(int argc, char *argv[])
   SeedManager::SetRun (runNumber);
 
   LogComponentEnable ("ImacRandomTrafficGenerator", LOG_LEVEL_DEBUG);
-#ifdef SMALL_NETWORK
-  const char* DataFilePath = "scratch/data5x5x5.txt";
+#if defined (SMALL_NETWORK)
+  const char* TopologyFilePath = "scratch/data5x5x5.txt";
+#elif defined (LARGE_NETWORK)
+  const char* TopologyFilePath = "scratch/data5x7x7.txt";
+#elif defined (CONVERGECAST)
+  const char* TopologyFilePath = "scratch/convergecast.txt";
 #endif
-#ifdef LARGE_NETWORK
-  const char* DataFilePath = "scratch/data5x7x7.txt";
-#endif
+
+
   MobilityHelper mobility;
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
   uint32_t NodesCount = 0; 
 
   //read the coordinate file. The coordinates satisfy the poisson spatial distribution
-  ifstream dataFile (DataFilePath);
+  ifstream dataFile (TopologyFilePath);
   string line;
   istringstream lineBuffer;
   string temp;
@@ -66,7 +69,6 @@ int main(int argc, char *argv[])
       NodesCount ++; 
     }
   }
-
   dataFile.close();
 
   mobility.SetPositionAllocator (positionAlloc);// assign the coordinates to each node.

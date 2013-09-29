@@ -757,6 +757,8 @@ namespace ns3 {
       void SetPdrRequirement80 ();
       void SetPdrRequirement90 ();
       void SetPdrRequirement95 ();
+      void IncrementReTransmissionTimes ();
+      bool IsDuplicatePacket (Ptr<Packet> s);
 
       /****************************************** PRIVATE *********************************************/
     private:
@@ -965,7 +967,8 @@ namespace ns3 {
       double m_selfSendingProbability;
       std::vector<NodesTxProbability> m_nodesTxProbability;
       uint32_t m_conflictingSetSize;
-      std::vector<uint32_t> m_packetQueue;
+      //Ptr<WifiMacQueue> m_packetQueue;
+      std::vector<Ptr<Packet> > m_packetQueue;
       UniformVariable m_uniform;
       double m_packetGenreationProbability;
       //========================NEW DESIGN================================================
@@ -974,6 +977,13 @@ namespace ns3 {
       std::vector<NextTxSlotInfo> m_nextTxSlotInfo;
       std::vector<NewErRxStatus> m_newErRxStatus;
       uint32_t m_newErEdgeReceivedFromReceiver; //0: not received; 1: received ER from receiver; 2: send info back to RX; 3: ACK received again, denoting RX received the Info.
+      uint32_t m_retransmissionTimes;
+#if defined(CONVERGECAST)
+      EventId m_incrementReTxTimesEvent;
+      std::vector<int16_t> m_linkParent;
+      std::vector<double> m_linkRequirement;
+#endif
+
 
       /************************POWER CONTROL in TDMA **************************************************/
       uint32_t m_maxBiDirectionalErChangeInformTimes; 

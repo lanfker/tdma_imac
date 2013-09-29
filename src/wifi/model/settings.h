@@ -1,11 +1,35 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+#define SMALL_NETWORK_SIZE 125
+
+// we need this one if we are running PRKS, otherwise packet will become extremely long and cause PRKS's malfunctioning
+#ifndef PRKS
+#define PRKS
+#endif
 /*
 #ifndef CONVERGECAST
-#define CONVERGECAST
+#define CONVERGECAST  // usually need to change traffic load.
 #endif
 */
+
+/*
+#ifndef MU_ESTIMATION
+#define MU_ESTIMATION
+#endif
+*/
+
+#ifndef SMALL_NETWORK
+#define SMALL_NETWORK
+#endif
+/*
+#ifndef MAX_POWER_LEVEL
+#define MAX_POWER_LEVEL
+#endif
+*/
+
+
+
 /*
 #ifndef PARAMETER_DYNAMICS
 #define PARAMETER_DYNAMICS
@@ -52,7 +76,7 @@
 
 //------------------PDR-------------------
 #ifndef MIXED_PDR_REQUIREMENTS
-const double DESIRED_DATA_PDR = 0.7;
+const double DESIRED_DATA_PDR = 0.9;
 #endif
 const double DESIRED_ACK_PDR = 0.9;
 //Tx Probability
@@ -78,6 +102,7 @@ const double DESIRED_ACK_PDR = 0.9;
 const int64_t PRIORITY_RESET_TIMESLOT = 100;
 const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds  (Heavy Traffic)
 //const uint64_t PACKET_GENERATION_INTERVAL = 400; // milliseconds  (Light Traffic)
+//const uint64_t PACKET_GENERATION_INTERVAL = 20000;
 
 //-------------------INTERFERENCE.H-----------------------
 #ifndef NI_QUANTILE_ESTIMATION_EWMA
@@ -131,15 +156,6 @@ const uint32_t DATA_TX_POWER_LEVEL = 0;
 #define POWER_CONTROL
 #endif 
 
-#ifndef SMALL_NETWORK
-#define SMALL_NETWORK
-#endif
-/*
-#ifndef MAX_POWER_LEVEL
-#define MAX_POWER_LEVEL
-#endif
-*/
-
 
 // ------------------------const define section ------------------------
 const uint32_t MAX_INFO_ITEM_SIZE = 18;
@@ -149,14 +165,15 @@ const uint32_t CONTROL_PAYLOAD_LENGTH = MAX_INFO_ITEM_SIZE * ER_INFO_ITEM_SIZE +
 const uint32_t DATA_PACKET_PAYLOAD_LENGTH = MAX_INFO_ITEM_SIZE_IN_DATA_PACKET * ER_INFO_ITEM_SIZE + 28;
 const uint32_t ER_INFO_ITEM_CATEGORY_ONE = 1;
 const uint32_t ER_INFO_ITEM_CATEGORY_TWO = 2;
-#ifdef SMALL_NETWORK
+#if defined (SMALL_NETWORK)
 const uint16_t INVALID_SENDER = 190;
 const uint16_t NETWORK_SIZE = 125;
-#endif
-
-#ifdef LARGE_NETWORK
+#elif defined (LARGE_NETWORK)
 const uint16_t INVALID_SENDER = 280;
 const uint16_t NETWORK_SIZE = 270;
+#elif defined (CONVERGECAST)
+const uint16_t INVALID_SENDER = 280;
+const uint16_t NETWORK_SIZE = 255;
 #endif
 const int AMPLIFY_TIMES = 30;
 //----------------------------------------
@@ -192,9 +209,10 @@ const uint32_t ONE_MILLISECOND = 1000000;// nano seconds
 const uint32_t ITEM_LIFE_TIMESLOT = 8000;
 const double DEFAULT_TX_PROBABILITY = 1;
 const uint32_t INFO_ITEM_SUM = 3000;
-const uint32_t QUEUE_SIZE = 1000;
+const uint32_t QUEUE_SIZE = 10000;
 const double DEFAULT_PACKET_GENERATION_PROBABILITY = 1;
 const int64_t UNDEFINED_NEXT_TX_SLOT = 32768;
+const uint32_t RETRANSMISSION_TIMES = 7;
 
 
 //-----------------------CONTROLLER --------------------------------

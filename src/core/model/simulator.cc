@@ -340,6 +340,7 @@ namespace ns3 {
     {
       neighbors.push_back (nodeAddr);
     }
+    //std::cout<<" nodes count in ER: "<< neighbors.size () << std::endl;
     return neighbors;
   }
 

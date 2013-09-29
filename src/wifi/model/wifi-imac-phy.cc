@@ -1,6 +1,7 @@
 #include "max-er-edge-interference-tag.h"
 #include "receiver-address-tag.h"
 #include <iostream>
+#include <fstream>
 #include <cmath>
 #include <string>
 #include <algorithm>
@@ -78,8 +79,14 @@ namespace ns3 {
         .AddAttribute ("EnergyDetectionThreshold",
             "The energy of a received signal should be higher than "
             "this threshold (dbm) to allow the PHY layer to detect the signal.",
-            //DoubleValue (-96.0),
             DoubleValue (ENERGY_DETECTION_THRESHOLD),
+            /*
+#if defined (CONVERGECAST)
+            DoubleValue (-96.0),
+#else
+            DoubleValue (ENERGY_DETECTION_THRESHOLD),
+#endif
+*/
             MakeDoubleAccessor (&WifiImacPhy::SetEdThreshold,
               &WifiImacPhy::GetEdThreshold),
             MakeDoubleChecker<double> ())
@@ -399,6 +406,7 @@ namespace ns3 {
         case WifiImacPhy::RX:
           NS_LOG_DEBUG ("drop packet because of channel switching while reception");
           m_endRxEvent.Cancel ();
+          //std::cout<<m_self.GetNodeId () << " receive event cancelled at line 408" << std::endl;
           goto switchChannel;
           break;
         case WifiImacPhy::TX:
@@ -648,18 +656,10 @@ switchChannel:
     sort (m_signalMap.begin (), m_signalMap.end (), outSinrDecreasingCompare);
     std::vector< Ptr<SignalMap> >::const_iterator it = m_signalMap.begin();
     Ptr<SignalMap> currentNode = (*it);
-    Vector senderPosition = m_channel->GetNodePosition (m_self);
     for( ; it != m_signalMap.end(); ++ it)
     { 
-      Vector receiverPosition = m_channel->GetNodePosition ((*it)->from);
-
-#if defined (CONVERGECAST)
-      if ((*it)->outSinr > lowerBound && ((*it)->outSinr - lowerBound) <= (currentNode->outSinr - lowerBound)
-          && (sqrt(senderPosition.x * senderPosition.x + senderPosition.y * senderPosition.y) >  sqrt(receiverPosition.x * receiverPosition.x + receiverPosition.y * receiverPosition.y)))
-#else
 
       if ((*it)->outSinr > lowerBound && ((*it)->outSinr - lowerBound) <= (currentNode->outSinr - lowerBound))
-#endif
       {
         currentNode = (*it);
         returnAddress = (*it)->from;
@@ -685,6 +685,7 @@ switchChannel:
       double initialErInterferenceW = niW - NOISE_POWER_W;
 #endif
       m_initialErCallback (m_self.GetNodeId (), returnAddress.GetNodeId (),initialErInterferenceW);
+      //std::cout<<m_self<<" initial_er_size: "<<GetErSize (initialErInterferenceW) << std::endl;
     }
 
     std::vector<TdmaLink> relatedLinks = Simulator::FindRelatedLinks (m_self.ToString ());
@@ -707,6 +708,14 @@ switchChannel:
 
       m_initialErCallback (sender, receiver, initialErInterferenceW);
     }
+#if defined (CONVERGECAST)
+    if (m_self.GetNodeId () == 1)
+    {
+      return Mac48Address::GetBroadcast();
+    }
+    //std::cout<<" links, sender: "<<m_self.GetNodeId () << " receiver: "<< (uint16_t)m_linkParent[m_self.GetNodeId () - 1] << std::endl;
+    return Mac48Address (IntToMacAddress((uint16_t)m_linkParent[m_self.GetNodeId () - 1]).c_str ());
+#endif
     return returnAddress;
   }
 
@@ -725,6 +734,29 @@ switchChannel:
   {
     m_self = addr;
     m_interference.SetAddress (m_self);
+#if defined (CONVERGECAST)
+    const char* ConvergecastLinkParent = "scratch/parent.txt";
+    const char* ConvergecastLinkRequirement = "scratch/link_requirement.txt";
+    ifstream link_parent_if(ConvergecastLinkParent);
+    uint32_t element;
+    for (uint32_t i=0; link_parent_if>>element; i ++)
+    {
+      //std::cout<<" element: "<<element<< std::endl;
+      m_linkParent[i] = element;
+    }
+    link_parent_if.close ();
+
+    ifstream link_requirement_if(ConvergecastLinkRequirement);
+    double element_float;
+    for (uint32_t i=0; link_requirement_if>>element_float; i ++)
+    {
+      //std::cout<<" element_float: "<<element_float<< std::endl;
+      m_linkRequirement[i] = element_float;
+    }
+    link_requirement_if.close ();
+    
+    //check link reliability according to sender id.
+#endif
   }
 
   double WifiImacPhy::GetRxPowerDbm () const
@@ -801,6 +833,15 @@ switchChannel:
         case WifiImacPhy::IDLE:
           // if the simulation is still in the learning process, receive packets as usual, if it is not in the learning process,
           // only when the node is active, can we receive packets
+          /*
+          if ( Simulator::Now () >= Simulator::LearningTimeDuration )
+          {
+            if (hdr.GetAddr1 ().GetNodeId () == m_self.GetNodeId ())
+            {
+              std::cout<<"RECEIVE: "<<m_self.GetNodeId ()<<" is receiving: "<<hdr.GetAddr2 ().GetNodeId ()<<" channel: "<<GetChannelNumber ()<<" pwoer? "<<(rxPowerW >= m_edThresholdW)<<" node_status: "<< m_nodeActiveStatusCallback () << std::endl;
+            }
+          }
+          */
           if (rxPowerW >= m_edThresholdW && (Simulator::Now () < Simulator::LearningTimeDuration || m_nodeActiveStatusCallback () == true || GetChannelNumber () == CONTROL_CHANNEL))
           { 
             NS_LOG_DEBUG ("sync to signal (power=" << rxPowerW << "W)");
@@ -974,13 +1015,14 @@ maybeCcaBusy:
     {
       if (GetChannelNumber () == CONTROL_CHANNEL)
       {
-        std::cout<<"15: "<< txDuration <<" "<<Simulator::Now () <<" "<< pkt->GetSize ()<<" "<< hdr.GetSize () << std::endl;
+        //std::cout<<"15: "<< txDuration <<" "<<Simulator::Now () <<" "<< pkt->GetSize ()<<" "<< hdr.GetSize () << std::endl;
         //std::cout<<"control_txDuration: "<< txDuration <<" time: "<<Simulator::Now () <<" packet length: "<< pkt->GetSize ()<<" hdr length: "<< hdr.GetSize () << std::endl;
       }
     }
     if (m_state->IsStateRx ())
     {
       m_endRxEvent.Cancel ();
+      //std::cout<<m_self.GetNodeId ()<<" receive canceled at line 1022" << std::endl;
       m_interference.NotifyRxEnd ();
     }
     NotifyTxBegin (pkt);
@@ -1000,6 +1042,7 @@ maybeCcaBusy:
       }
     }
     m_channel->Send (this, pkt, txPower + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
+    //std::cout<<m_self.GetNodeId ()<<" 1041 packet size: "<<pkt->GetSize () << std::endl;
   }
   void
     WifiImacPhy::SendPacket (Ptr<const Packet> packet, WifiMode txMode, WifiPreamble preamble, uint8_t txPower)
@@ -1057,6 +1100,7 @@ maybeCcaBusy:
       if (m_state->IsStateRx ())
       {
         m_endRxEvent.Cancel ();
+        //std::cout<<m_self.GetNodeId () <<" receive canceled at line 1099" << std::endl;
         m_interference.NotifyRxEnd ();
       }
       NotifyTxBegin (pkt);
@@ -1072,6 +1116,8 @@ maybeCcaBusy:
         }
       }
       m_channel->Send (this, pkt, GetPowerDbm (txPower) + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
+      
+      //std::cout<<m_self.GetNodeId ()<<" 1115 packet size: "<<pkt->GetSize () << std::endl;
 
 
     }
@@ -1338,6 +1384,12 @@ maybeCcaBusy:
       NS_ASSERT (IsStateRx ());
       NS_ASSERT (event->GetEndTime () == Simulator::Now ());
 
+      /*
+      if (hdr.GetAddr1 ().GetNodeId () == m_self.GetNodeId () && Simulator::Now () >= Simulator::LearningTimeDuration)
+      {
+        std::cout<<" it goes to there" << std::endl;
+      }
+      */
       struct InterferenceHelper::SnrPer snrPer;
       snrPer = m_interference.CalculateSnrPer (event);
       m_interference.NotifyRxEnd ();
@@ -1362,6 +1414,7 @@ maybeCcaBusy:
         m_interference.ControlChannel_NotifyDataEndReceiving ();
       }
 
+      //std::cout<<m_self.GetNodeId ()<<" isData() "<< hdr.IsData () <<" isGroup: "<< (!hdr.GetAddr1 ().IsGroup ())  <<" channel: "<<GetChannelNumber () << " for_self: "<< (hdr.GetAddr1 () == m_self) << std::endl;
       if (hdr.IsData () && !hdr.GetAddr1 ().IsGroup () && GetChannelNumber () == DATA_CHANNEL && hdr.GetAddr1 () == m_self)
       {
 #if defined (SCREAM)
@@ -1518,7 +1571,7 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
   {
     bool isEdgeFound = false;
     *edgeNode = Mac48Address::GetBroadcast ();
-    std::cout<<"18: "<<deltaInterferenceW<<" " << lastErEdgeInterferenceW;
+    std::cout<<"18: "<<deltaInterferenceW<<" " << lastErEdgeInterferenceW<<std::endl;
     //std::cout<<"delta interference: "<<deltaInterferenceW<<" last er edge interference power: " << lastErEdgeInterferenceW;
     m_erEdgeInterferenceW = lastErEdgeInterferenceW;
     double supposedInterferenceW = 0.0;
@@ -1727,6 +1780,76 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
       return snr - rxc + WToDbm (GetCurrentNoiseW ()) - TX_GAIN - RX_GAIN;
     }
     return GetPowerDbm (0);
+  }
+  std::string WifiImacPhy::IntToMacAddress (uint16_t nodeId)
+  {
+    string str = "00:00:00:00:00:00";
+    if ( nodeId < 16)
+    {
+      if (nodeId < 10)
+      {
+        str[16] = '0'+nodeId;
+      }
+      else if (nodeId >=10 && nodeId <16)
+      {
+        str[16] = 'a'+nodeId - 10;
+      }
+      return str;
+    }
+    else if (nodeId < 16*16)
+    {
+      uint16_t second = nodeId / 16;
+      if (second < 10)
+      {
+        str[15] = '0'+second;
+      }
+      else if ( second >= 10 && second <16)
+      {
+        str[15] = 'a'+second - 10;
+      }
+      uint16_t first = nodeId % 16;
+      if (first < 10)
+      {
+        str[16] = '0'+first;
+      }
+      else if (first >= 10 && second <16)
+      {
+        str[16] = 'a'+first - 10;
+      }
+      return str;
+    }
+    else if (nodeId < 16*16*16)
+    {
+      uint16_t third = nodeId / (16*16);
+      if (third < 10)
+      {
+        str[13] = '0'+ third;
+      }
+      else if ( third >= 10 && third <16)
+      {
+        str[13] = 'a'+ third - 10;
+      }
+      uint16_t second = (nodeId % (16*16))/ 16;
+      if (second < 10)
+      {
+        str[15] = '0'+ second;
+      }
+      else if ( second >= 10 && second <16)
+      {
+        str[15] = 'a'+ second - 10;
+      }
+      uint16_t first = nodeId % 16;
+      if (first < 10)
+      {
+        str[16] = '0'+ first;
+      }
+      else if (first >= 10 && second <16)
+      {
+        str[16] = 'a'+ first - 10;
+      }
+      return str;
+    }
+    return str;
   }
 
 } // namespace ns3
