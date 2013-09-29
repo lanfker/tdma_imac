@@ -1,7 +1,6 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#define SMALL_NETWORK_SIZE 125
 
 // we need this one if we are running PRKS, otherwise packet will become extremely long and cause PRKS's malfunctioning
 #ifndef PRKS
