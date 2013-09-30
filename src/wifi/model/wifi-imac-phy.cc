@@ -184,7 +184,7 @@ namespace ns3 {
     // the default value 
     m_erEdgeInterferenceW = DEFAULT_INITIAL_EDGE;  // the interference power at 1.5 transmission range. Computed by Matlab. This initial value seems of no use.
     m_noiseW = NOISE_POWER_W;
-    m_whiteGaussianNoise = NormalVariable (0, 1);
+    m_whiteGaussianNoise = NormalVariable (0, 1); // White noise with mean 0 and variance 1.
     m_initialPowerLevel = MAX_TX_POWER_LEVEL; // the power level of the beacon message in the learning process of the iMAC
   }
 
