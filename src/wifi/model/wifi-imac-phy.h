@@ -339,6 +339,7 @@ namespace ns3 {
       double m_initialErEdgeInterferenceW;
       double m_rxPowerDbm;
       double m_snr;
+      NormalVariable m_whiteGaussianNoise;
   };
 
   bool operator != (const std::vector<SignalMap> &a, const std::vector<SignalMap> &b);

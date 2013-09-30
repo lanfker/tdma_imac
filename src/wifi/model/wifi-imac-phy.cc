@@ -184,6 +184,7 @@ namespace ns3 {
     // the default value 
     m_erEdgeInterferenceW = DEFAULT_INITIAL_EDGE;  // the interference power at 1.5 transmission range. Computed by Matlab. This initial value seems of no use.
     m_noiseW = NOISE_POWER_W;
+    m_whiteGaussianNoise = NormalVariable (0, 1);
     m_initialPowerLevel = MAX_TX_POWER_LEVEL; // the power level of the beacon message in the learning process of the iMAC
   }
 
@@ -682,7 +683,7 @@ switchChannel:
       double rxPowerDbm = m_channel->GetRxPowerByDistance (GetPowerDbm (0) + GetTxGain (), distance) + GetRxGain ();
       double niDbm = rxPowerDbm - m_snr;
       double niW = DbmToW (niDbm);
-      double initialErInterferenceW = niW - NOISE_POWER_W;
+      double initialErInterferenceW = niW - GetCurrentNoiseW ();
 #endif
       m_initialErCallback (m_self.GetNodeId (), returnAddress.GetNodeId (),initialErInterferenceW);
       //std::cout<<m_self<<" initial_er_size: "<<GetErSize (initialErInterferenceW) << std::endl;
@@ -703,7 +704,7 @@ switchChannel:
       double rxPowerDbm = m_channel->GetRxPowerByDistance (GetPowerDbm (0) + GetTxGain (), distance) + GetRxGain ();
       double niDbm = rxPowerDbm - m_snr;
       double niW = DbmToW (niDbm);
-      double initialErInterferenceW = niW - NOISE_POWER_W;
+      double initialErInterferenceW = niW - GetCurrentNoiseW ();
 #endif
 
       m_initialErCallback (sender, receiver, initialErInterferenceW);
@@ -1493,7 +1494,7 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
   */
   double WifiImacPhy::GetCurrentNoiseW () const
   {
-    return m_noiseW;
+    return m_noiseW + m_whiteGaussianNoise.GetValue () * 1.0e-13;
   }
   double WifiImacPhy::GetCurrentInterferenceW ()
   {
