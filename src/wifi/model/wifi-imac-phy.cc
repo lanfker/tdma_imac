@@ -1572,7 +1572,6 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
     bool isEdgeFound = false;
     *edgeNode = Mac48Address::GetBroadcast ();
     std::cout<<"18: "<<deltaInterferenceW<<" " << lastErEdgeInterferenceW<<std::endl;
-    //std::cout<<"delta interference: "<<deltaInterferenceW<<" last er edge interference power: " << lastErEdgeInterferenceW;
     m_erEdgeInterferenceW = lastErEdgeInterferenceW;
     double supposedInterferenceW = 0.0;
     if ( deltaInterferenceW < 0) // expand the ER region
@@ -1637,7 +1636,13 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
           }
 #endif
           deltaInterferenceW -= supposedInterferenceW; 
+#ifndef CONSERVATIVE_ER_CHANGE  // If this @CONSERVATIVE_ER_CHANGE is not defined, we change the condition
+        // Even the @deltaInterferenceW is less than zero, we do not rollback our change. By implementing this, we 
+        // expect to have throughput and delay improvement.
+          if ( deltaInterferenceW <= 0) 
+#else
           if ( deltaInterferenceW == 0) 
+#endif
           {
             m_erEdgeInterferenceW = supposedInterferenceW;
             *edgeNode = (*it)->from;
