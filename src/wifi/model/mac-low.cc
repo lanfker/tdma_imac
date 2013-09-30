@@ -4175,9 +4175,11 @@ rxPacket:
       Ptr<Packet> pkt = NULL;
       m_packetQueue.push_back (pkt);
     }
+    /*
     else {
       std::cout<<" queue_full."<<std::endl;
     }
+    */
     if (Simulator::Now () > Simulator::SimulationStopTime)
     {
       return;

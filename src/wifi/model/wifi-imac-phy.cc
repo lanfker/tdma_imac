@@ -1579,9 +1579,9 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
       for (vector<Ptr<SignalMap> >::const_iterator it = m_signalMap.begin (); it != m_signalMap.end (); ++ it)
       {
 #ifndef TX_POWER_HETEROGENEITY
-        double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*it)->inBoundAttenuation; //dBm
+        double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*it)->inBoundAttenuation + GetRxGain (); //dBm
 #else
-        double supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation; //dBm
+        double supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation + GetRxGain (); //dBm
 #endif
         supposedInterferenceW = DbmToW (supposedInterferenceDbm);
         if (supposedInterferenceW < m_erEdgeInterferenceW) // if the supposed interference is less than the last ER edge interference, we should start computing the delta interference power; 
@@ -1618,9 +1618,9 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
       for (vector<Ptr<SignalMap> >::const_reverse_iterator it = m_signalMap.rbegin (); it != m_signalMap.rend (); ++ it)
       {
 #ifndef TX_POWER_HETEROGENEITY
-        double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*it)->inBoundAttenuation;//Dbm
+        double supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*it)->inBoundAttenuation + GetRxGain ();//Dbm
 #else
-        double supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation; // dbm
+        double supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation + GetRxGain (); // dbm
 #endif
         supposedInterferenceW = DbmToW (supposedInterferenceDbm);
         if (supposedInterferenceW > m_erEdgeInterferenceW ) // since this time, the delta interference is positive, we want to shrink the ER region, that means when the supposed interference is greater than or equal to the last ER region edge interference, we should start computing the delta interference power. Note that here we use the reverse_iterator, so we are iterating the vector from end to the beginning
@@ -1654,9 +1654,9 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
             if (conditionTwoMeet == true)
             {
 #ifndef TX_POWER_HETEROGENEITY
-              supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it))->inBoundAttenuation;//Dbm
+              supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it))->inBoundAttenuation + GetRxGain ();//Dbm
 #else
-              supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation; // dbm
+              supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation + GetRxGain (); // dbm
 #endif
               supposedInterferenceW = DbmToW (supposedInterferenceDbm);
               m_erEdgeInterferenceW = supposedInterferenceW;
@@ -1664,10 +1664,10 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
               break;
             }
 #ifndef TX_POWER_HETEROGENEITY
-            supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it-1))->inBoundAttenuation;//Dbm
+            supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it-1))->inBoundAttenuation + GetRxGain ();//Dbm
 #else
 
-            supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*(it -1))->from ,m_self) + GetTxGain () - (*(it -1))->inBoundAttenuation; // dbm
+            supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*(it -1))->from ,m_self) + GetTxGain () - (*(it -1))->inBoundAttenuation + GetRxGain (); // dbm
 #endif
             supposedInterferenceW = DbmToW (supposedInterferenceDbm);
             m_erEdgeInterferenceW = supposedInterferenceW;
@@ -1676,9 +1676,9 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
 #endif
 #ifdef NO_PROTECTION 
 #ifndef TX_POWER_HETEROGENEITY
-            supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it))->inBoundAttenuation;//Dbm
+            supposedInterferenceDbm = GetPowerDbm (0) + GetTxGain () - (*(it))->inBoundAttenuation + GetRxGain ();//Dbm
 #else
-            supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation; // dbm
+            supposedInterferenceDbm = GetPowerDbmWithFixedSnr ((*it)->from ,m_self) + GetTxGain () - (*it)->inBoundAttenuation + GetRxGain (); // dbm
 #endif
             supposedInterferenceW = DbmToW (supposedInterferenceDbm);
             m_erEdgeInterferenceW = supposedInterferenceW;
