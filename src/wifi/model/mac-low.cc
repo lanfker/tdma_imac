@@ -2988,21 +2988,22 @@ rxPacket:
             linkMetaData.interferencePreviousDbm = linkMetaData.interferenceNowDbm;
             linkMetaData.interferenceNowDbm = tempPhy->WToDbm (it->DataInterferenceW + tempPhy->GetCurrentNoiseW ());
 
+#if defined (MU_ESTIMATION)
+            double deltaIU = tempPhy->DbmToW (linkMetaData.interferenceNowDbm) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm + linkMetaData.lastComputedDeltaInterferenceDb);
+            linkMetaData.muBWatt = m_ewmaCoefficient * linkMetaData.muBWatt + (1-m_ewmaCoefficient)*(deltaIU - linkMetaData.lastDeltaIU);
+            linkMetaData.lastDeltaIU = deltaIU;
+            std::cout<<m_self.GetNodeId () <<" "<<Simulator::Now () <<" mu_U: "<<linkMetaData.muBWatt<< std::endl; 
+#endif
             double deltaIM = tempPhy->DbmToW (linkMetaData.interferenceNowDbm) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm);
             double previousDeltaIR = tempPhy->DbmToW (linkMetaData.interferencePreviousDbm + linkMetaData.lastComputedDeltaInterferenceDb) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm) - linkMetaData.muBWatt;
             double actualDeltaU = deltaIM - previousDeltaIR;
-#if defined (MU_ESTIMATION)
-            double deltaIU = tempPhy->DbmToW (linkMetaData.interferenceNowDbm) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm + linkMetaData.lastComputedDeltaInterferenceDb);
-            std::cout<<m_self.GetNodeId () <<" "<<Simulator::Now () <<" delta_I_U: "<<deltaIU<< std::endl; 
-#endif
 
 
             //std::cout<<m_self<<" from: "<< sender<<" previous muBWatt: "<< link     MetaData.muBWatt<< " delta_I_m: "<<deltaIM <<" computed_delta_I(dB): "<<deltaIn     terferenceDb<<" actual delta_U: "<<actualDeltaU <<" previousDeltaIR: "<<previou     sDeltaIR;
             std::cout<<"9: "<<m_self.GetNodeId ()<<" "<< sender.GetNodeId ()<<" "<< linkMetaData.muBWatt<< " "<<deltaIM <<" "<<deltaInterferenceDb<<" "<<actualDeltaU <<" "<<previousDeltaIR<<std::endl;
-#if defined (MU_ESTIMATION)
-            linkMetaData.muBWatt = (1 - m_ewmaCoefficient) * actualDeltaU  + m_ewmaCoefficient * linkMetaData.muBWatt;
-#endif
+#if !defined (MU_ESTIMATION)
             linkMetaData.muBWatt = 0; 
+#endif
             //std::cout<<" new muBWatt: "<< linkMetaData.muBWatt<<std::endl;
             std::cout<<"10: "<< linkMetaData.muBWatt<<std::endl;
             linkMetaData.lastComputedDeltaInterferenceDb = deltaInterferenceDb;
@@ -3101,6 +3102,7 @@ rxPacket:
         iter->interferencePreviousDbm = item.interferencePreviousDbm;
         iter->lastComputedDeltaInterferenceDb = item.lastComputedDeltaInterferenceDb;
         iter->muBWatt = item.muBWatt;
+        iter->lastDeltaIU = item.lastDeltaIU;
         return;
       }
     }
@@ -3139,6 +3141,7 @@ rxPacket:
     linkMetaData.interferencePreviousDbm = 0.0; // the real \DeltaI = m_interferenceNow - m_interferencePrevious;
     linkMetaData.lastComputedDeltaInterferenceDb = 0.0;
     linkMetaData.muBWatt = 0.0; // the average value of the interference outside of the ER
+    linkMetaData.lastDeltaIU = 0.0;
     return linkMetaData;
   }
 

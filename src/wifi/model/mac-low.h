@@ -147,6 +147,7 @@ namespace ns3 {
     double interferencePreviousDbm; // the real \DeltaI = m_interferenceNow - m_interferencePrevious;
     double lastComputedDeltaInterferenceDb;
     double muBWatt; // the average value of the interference outside of the ER
+    double lastDeltaIU;
   } LinkMetaData;
 
   typedef struct NodeMaxErItem
