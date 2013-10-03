@@ -2999,7 +2999,9 @@ rxPacket:
 
             //std::cout<<m_self<<" from: "<< sender<<" previous muBWatt: "<< link     MetaData.muBWatt<< " delta_I_m: "<<deltaIM <<" computed_delta_I(dB): "<<deltaIn     terferenceDb<<" actual delta_U: "<<actualDeltaU <<" previousDeltaIR: "<<previou     sDeltaIR;
             std::cout<<"9: "<<m_self.GetNodeId ()<<" "<< sender.GetNodeId ()<<" "<< linkMetaData.muBWatt<< " "<<deltaIM <<" "<<deltaInterferenceDb<<" "<<actualDeltaU <<" "<<previousDeltaIR<<std::endl;
-            //linkMetaData.muBWatt = (1 - m_ewmaCoefficient) * actualDeltaU  + m_ewmaCoefficient * linkMetaData.muBWatt;
+#if defined (MU_ESTIMATION)
+            linkMetaData.muBWatt = (1 - m_ewmaCoefficient) * actualDeltaU  + m_ewmaCoefficient * linkMetaData.muBWatt;
+#endif
             linkMetaData.muBWatt = 0; 
             //std::cout<<" new muBWatt: "<< linkMetaData.muBWatt<<std::endl;
             std::cout<<"10: "<< linkMetaData.muBWatt<<std::endl;
