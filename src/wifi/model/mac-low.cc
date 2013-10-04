@@ -2972,8 +2972,8 @@ rxPacket:
 #ifdef MIN_VARIANCE_CONTROLLER
           if (linkMetaData.interferencePreviousDbm != 0 && linkMetaData.interferenceNowDbm != 0)
           {
-            //deltaInterferenceDb = m_minVarController.GetDeltaInterference (m_desiredDataPdr, it->DataPdr, estimatedPdr, conditionTwoMeet);
-            deltaInterferenceDb = m_minVarController.GetDeltaInterference (m_desiredDataPdr, it->DataPdr, it->PreviousDataPdr, conditionTwoMeet);
+            deltaInterferenceDb = m_minVarController.GetDeltaInterference (m_desiredDataPdr, it->DataPdr, estimatedPdr, conditionTwoMeet);
+            //deltaInterferenceDb = m_minVarController.GetDeltaInterference (m_desiredDataPdr, it->DataPdr, it->PreviousDataPdr, conditionTwoMeet);
             //std::cout<<m_self<<" from: "<<sender<<" desiredPdr: "<<m_desiredDat     aPdr << " ewmaCurrentPdr: "<<it->DataPdr << " estimatedCurrentPdr: "<< estimate     dPdr <<" deltaInterferenceDb: "<<deltaInterferenceDb<< std::endl;
             std::cout<<"8: "<<m_self.GetNodeId ()<<" "<<sender.GetNodeId ()<<" "<<m_desiredDataPdr << " "<<it->DataPdr << " "<< estimatedPdr <<" "<<deltaInterferenceDb<< std::endl;
           }
