@@ -337,11 +337,13 @@ namespace ns3 {
     m_desiredDataPdr = DESIRED_DATA_PDR;
 #endif
 #ifdef MIXED_PDR_REQUIREMENTS
+    //For each link, it randomly picks a PDR requirement. This is for mixed Requirement in a single run.
+    //Notice that this is different from dynamically change PDR requirement for each link.
     double pdrArr[] = {0.7,0.8,0.9,0.95};
     uint32_t indx = rand () % 4; // 0--3
     m_desiredDataPdr = pdrArr[indx];
 #endif
-    m_ackPdr = DESIRED_ACK_PDR;
+    m_ackPdr = DESIRED_ACK_PDR; // ACK PDR is no longer in use.
     m_estimatorWindow = ESTIMATION_WINDOW;
     m_ewmaCoefficient = EWMA_COEFFICIENT;
     m_nodesCountUpperBound = Simulator::NodesCountUpperBound;
@@ -383,8 +385,6 @@ namespace ns3 {
       m_linkRequirement.push_back (requirement);
     }
     requirementFile.close ();
-    //std::vector<int16_t> m_linkParent;
-    //std::vector<double> m_linkRequirement;
 #endif
 #if defined (PARAMETER_DYNAMICS)
     Simulator::Schedule (Seconds(200), &MacLow::SetPdrRequirement70, this);
@@ -516,7 +516,6 @@ namespace ns3 {
     m_phy->GetObject<WifiImacPhy> ()->SetNodeTxProbabilityCallback (MakeCallback (&MacLow::GetNodeTxProbability, this));
     m_phy->GetObject<WifiImacPhy> ()->SetAddress (m_self);
     double thresholdSnr = Controller().GetSnrByPdr (m_desiredDataPdr);
-    //std::cout<<m_self<<" m_desiredDataPdr: "<<m_desiredDataPdr<< std::endl;
     m_phy->GetObject<WifiImacPhy> ()->SetThresholdSnr (thresholdSnr); // For RID initial ER settings
     if (!m_phy->IsStateSwitching ())   
     {
@@ -734,14 +733,15 @@ namespace ns3 {
 
     if (m_currentHdr.IsData () && !m_currentHdr.GetAddr1().IsGroup ()) // data packet but not broadcast packet
     {
-      //m_txParams.EnableRts ();
-      m_txParams.EnableAck ();
+      //m_txParams.EnableRts (); //For data transmission in PRKS, we explicitly disable RTS-CTS handshake.
+      m_txParams.EnableAck (); //ACK is still needed.
     }
     //NS_ASSERT (m_phy->IsStateIdle ());
 
     NS_LOG_DEBUG ("startTx size=" << GetSize (m_currentPacket, &m_currentHdr) <<
         ", to=" << m_currentHdr.GetAddr1 () << ", listener=" << m_listener);
 
+    //During the start up process, nodes try to share control information with neighbors. 
     if (Simulator::Now () < Simulator::LearningTimeDuration && m_controlInformation.size () > 0)
     {
       TrySendControlPacket ();
@@ -784,6 +784,8 @@ namespace ns3 {
   }
 
   // do not consider the case where @m_self is the sender 
+  // For a link, both sender and receiver maintain information regarding when the sender will send its next packet.
+  // By doing this, we hope to decrease the channel inconsistency percentage. This is invoked when the PRKS just starts running.
   void MacLow::InitiateNextTxSlotInfo  ()
   {
     std::vector<TdmaLink> selfRelatedLinks =  Simulator::FindRelatedLinks (m_self.ToString ());
@@ -820,6 +822,9 @@ namespace ns3 {
     return nullInfo; // this sentence should never be executed.
   }
 
+  //Whenever one of all the links that are associated with itself and has the maximum priority among its associated links and
+  //the receiver have no information regarding when the sender will send its packet next time, this receiver stays in conservative
+  //state.
   void MacLow::UpdateConservativeStatus (int64_t linkId, bool beConservative)
   {
     for (std::vector<NextTxSlotInfo>::iterator it = m_nextTxSlotInfo.begin (); it != m_nextTxSlotInfo.end (); ++ it)
@@ -842,6 +847,7 @@ namespace ns3 {
         if (fromSender == true)
         {
           it->nextSlotFromSender = nextRxSlot;
+          it->nextSlotFromSelf = nextRxSlot; // originally, this sentence does not exist. Added on 10/10/2013
         }
         if (fromSender == false )
         {
@@ -857,13 +863,15 @@ namespace ns3 {
     }
   }
 
+  // not really clear the record. We just re-set the value to a predefined value, which denotes undefined next transmisison timeslot.
+  // Thu Oct 10 12:06:44 EDT 2013
   void MacLow::ClearNextRxSlot (int64_t linkId)
   {
     for (std::vector<NextTxSlotInfo>::iterator it = m_nextTxSlotInfo.begin (); it != m_nextTxSlotInfo.end (); ++ it)
     {
       if (it->linkId == linkId)
       {
-        it->nextSlotFromSelf = UNDEFINED_NEXT_TX_SLOT;
+        it->nextSlotFromSelf = UNDEFINED_NEXT_TX_SLOT; 
         //it->nextSlots.clear ();
       }
     }
@@ -890,16 +898,21 @@ namespace ns3 {
    */
   void MacLow::CalcPriority ()
   {
-    //std::cout<<" link set size: "<< Simulator::ListAllLinks ().size () << std::endl;
+    //current timeslot. currently, the timeslot length is 8 ms.
     int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
-    m_currentTimeslot = currentSlot;
-    IncreaseSlotCount ();
+    // After calculating the timeslot, we assign it to a private member variable such that within the class, 
+    // every one knows the current slot number.
+    m_currentTimeslot = currentSlot; 
+    // For item priority reset. Basically, if we do not have this function, some item may never get delivered efficiently.
+    // One consequence of this is that, some links may stop adapting their ER's
+    IncreaseSlotCount (); 
     if ( m_currentTimeslot == 0)
     {
-      InitiateNextTxSlotInfo ();
+      InitiateNextTxSlotInfo (); // 
       InitiateErRxStatus  ();
     }
-    Time scheduleDelay = MicroSeconds (DELAY_BEFORE_SWITCH_CHANNEL); // 6.7 ms
+    // 6.7 ms. This delay is set such that we swith channel, a complete data transmission has been achieved.
+    Time scheduleDelay = MicroSeconds (DELAY_BEFORE_SWITCH_CHANNEL);
     if (Simulator::NodesWillSend.size () != 0 && Simulator::SlotBeginningTime != Simulator::Now ())
     {
       // for a new time slot, clear the data for the previous time slot and update the slot beginning time to identify that
@@ -914,6 +927,9 @@ namespace ns3 {
 
     //--------------------------------------------------------------------------------------------------
     // For all the links the current node is related to, find the link with max priority
+    // If for those links @m_self is related to, the link initiated by @m_self (@m_self as a sender) cannot have
+    // the maximum priority, we do not have to calculate the priority values of its conflict set. 
+    // This is mainly for optimization. It can save us some simulation time.
     //--------------------------------------------------------------------------------------------------
     std::vector<TdmaLink> linkRelatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks; 
     if ( linkRelatedLinks.size () != 0)
@@ -942,27 +958,35 @@ namespace ns3 {
           CollectConfilictingLinks (m_conflictingSet, m_self);
           initialSlotTxStatus = SenderComputeThePriority (m_self.ToString ());
         }
+        //?? Only send when m_nextSendingSlot is equal to m_currentTimeslot??? @_@Question.
         if (m_currentTimeslot == m_nextSendingSlot || (initialSlotTxStatus == true && m_currentTimeslot == 0))
         {
           NS_ASSERT (m_conflictingSet.size () != 0);
           CollectConfilictingLinks (m_conflictingSet, m_self);
           SenderComputeThePriority (m_self.ToString ()); //Compute for the next sending timeslot
-          //Simulator::m_nodesInDataChannel.push_back (m_self.ToString());
           m_nodeActive = true; 
-          // once the node knows it could be active in the slot, stop computing
+          //once the node knows it could be active in the slot, stop computing
+          //After data transmission, switch channel back to control channel. Nodes stay in control channel by default.
           Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
 
 
-          if (!m_phy->IsStateSwitching ())   
+          if (!m_phy->IsStateSwitching ())
           {
-            m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
-            m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
+            // switch to data channel, prepare for data transmission
+            m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); 
+            // switch to control channel after data transmission;
+            m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); 
+            // If in the packet queue, there are still packets, we transmit the packets in the packet queue.
+            // However, if the packet queue is empty, we generate the data packet by ourselves and send.
+            // Here, the packet queue is maintained in src/wifi/model/dca-txop.cc
             if (m_queueEmptyCallback () == true && m_dataReceiverAddr != Mac48Address::GetBroadcast ())
             {
+              //generate packets by ourselves.
               Simulator::Schedule (MicroSeconds (TIME_TO_TX_IN_SLOT),&MacLow::GenerateDataPacketAndSend, this);
             }
             else
             {
+              //send the packets in packet queue.
               Simulator::Schedule (MicroSeconds (TIME_TO_TX_IN_SLOT), &MacLow::m_startTxCallback, this);
             }
           }
@@ -978,15 +1002,16 @@ namespace ns3 {
       else if ( maxLink.receiverAddr == m_self.ToString ())
       {
         bool nodeStatus = false;
+        //As a receiver, if has to check if the current timeslot is the slot that its sender is going to transmit.
+        //If the sender does not has such information, switch to "conservative" mode. Notice that a receiver may have 
+        //many senders, but here we only consider the link with maximum priority calculated at the beginning of the current function/method.
         NextTxSlotInfo nextRxSlotInfo = GetNextTxSlot (maxLink.linkId);
-        //std::cout<<" undefined tx_slot = " <<(nextRxSlotInfo.nextSlotFromSender == UNDEFINED_NEXT_TX_SLOT) << " be conservative: "<< nextRxSlotInfo.beConservative << std::endl;
         if ( nextRxSlotInfo.nextSlotFromSender == UNDEFINED_NEXT_TX_SLOT || nextRxSlotInfo.beConservative == true)
         {
           nodeStatus = true;  //HERE, WE ARE TRYING TO BE CONSERVATIVE
         }
-        //else if (find (nextRxSlotInfo.nextSlots.begin (), nextRxSlotInfo.nextSlots.end (), m_currentTimeslot) != nextRxSlotInfo.nextSlots.end () || nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot) 
+        // once there is a record which says the node should be in data channel in the current timeslot, let it be in data channel;
         else if (nextRxSlotInfo.nextSlotFromSelf <= m_currentTimeslot || nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot) 
-          // once there is a record which says the node should be in data channel in the current timeslot, let it in data channel;
         {
           nodeStatus = true;
           if (nextRxSlotInfo.nextSlotFromSender == m_currentTimeslot)
@@ -1005,7 +1030,6 @@ namespace ns3 {
         if (nodeStatus == true ) // as receiver
         {
           m_nodeActive = true; 
-          //std::cout<<"in_data_channel: "<<m_self.GetNodeId () << std::endl;
           // once the node knows it could be active in the slot, stop computing
           Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
           if (!m_phy->IsStateSwitching ())   
@@ -1166,23 +1190,21 @@ namespace ns3 {
     }
     // the linkId won't be 0
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[Mac48Address (addr.c_str ()).GetNodeId ()].selfInitiatedLink;
+    //loop until we get a valid timeslot
     for (int64_t slot = m_currentTimeslot; ; ++slot)
     {
       int64_t selfPriority = DoCalculatePriority (linkInfo.linkId, slot);
       bool selfMax = true;
-      //int64_t maxPriority = 0;
-      //int64_t maxPriorityLinkId = 0;
+      //for the current iterated slot, check if @linkInfo.linkId has the maximum priority. If yes, we are done!
+      //If not, we keep doing, and increment @slot by 1
       for (std::vector<int64_t>::iterator it = m_conflictingSet.begin (); it != m_conflictingSet.end (); ++ it)
       {
         if (*it != linkInfo.linkId && DoCalculatePriority (*it, slot) >= selfPriority)
         {
           selfMax = false;
           break;
-          //maxPriority = DoCalculatePriority (*it, slot);
-          //maxPriorityLinkId = *it;
         }
       }
-      //if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
       if (selfMax == true ) 
       {
         if ( m_currentTimeslot == slot && returnValue == false)
@@ -1928,7 +1950,11 @@ rxPacket:
     {
       if (hdr->IsData () )
       {
+#if defined (TX_POWER_HETEROGENEITY)
         double tx_power = imacPhy-> GetPowerDbmWithFixedSnr (hdr->GetAddr2 (), hdr->GetAddr1 ());
+#else
+        double tx_power = -25;
+#endif
         if ( Simulator::Now () >= Simulator::LearningTimeDuration )
         {
           Ptr<SignalMap> signalMapItem = imacPhy->GetSignalMapItem (hdr->GetAddr1 ());
@@ -1937,7 +1963,11 @@ rxPacket:
       }
       else if (hdr->IsAck ())
       {
+#if defined (TX_POWER_HETEROGENEITY)
         double tx_power = imacPhy-> GetPowerDbmWithFixedSnr (hdr->GetAddr1 (), m_self);
+#else
+        double tx_power = -25;
+#endif
         imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
       }
     }
@@ -4194,6 +4224,7 @@ rxPacket:
 
   }
 
+  //@m_self as a receiver
   void MacLow::InitiateErRxStatus  ()
   {
     std::vector<TdmaLink> selfRelatedLinks =  Simulator::FindRelatedLinks (m_self.ToString ());

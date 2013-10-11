@@ -35,7 +35,8 @@
 
 namespace ns3 {
 
-const double PATH_LOSS_EXPONENT = 2.6;
+//const double PATH_LOSS_EXPONENT = 2.6;
+const double PATH_LOSS_EXPONENT = 2.61; //NetEye Path loss exponent is 2.61
 const uint32_t LEARNING_PROCESS_DURATION = 200;
 const uint32_t SIMULATION_STOP_TIME = 3000;
 const uint32_t NODE_COUNT_UPPER_BOUND = 1000;

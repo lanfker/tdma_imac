@@ -24,6 +24,8 @@ const uint32_t APP_START_TIME = 0;
 const uint32_t APP_END_TIME = 120;
 const double TRAFFIC_GENERATION_PROBABILITY = 1;
 
+#define SMALL_NETWORK
+
 int main(int argc, char *argv[])
 {
 
@@ -36,7 +38,8 @@ int main(int argc, char *argv[])
 
   LogComponentEnable ("ImacRandomTrafficGenerator", LOG_LEVEL_DEBUG);
 #if defined (SMALL_NETWORK)
-  const char* TopologyFilePath = "scratch/data5x5x5.txt";
+  //const char* TopologyFilePath = "scratch/data5x5x5.txt";
+  const char* TopologyFilePath = "scratch/data5x5x5_with_neteye_channel_parameters.txt";
 #elif defined (LARGE_NETWORK)
   const char* TopologyFilePath = "scratch/data5x7x7.txt";
 #elif defined (CONVERGECAST)

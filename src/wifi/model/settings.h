@@ -28,7 +28,6 @@
 */
 
 
-
 /*
 #ifndef PARAMETER_DYNAMICS
 #define PARAMETER_DYNAMICS
@@ -71,7 +70,7 @@
 
 //#define P_CONTROLLER_REFERENCE_I
 
-//#define CONSERVATIVE_ER_CHANGE
+#define CONSERVATIVE_ER_CHANGE
 
 //------------------PDR-------------------
 #ifndef MIXED_PDR_REQUIREMENTS
@@ -111,7 +110,8 @@ const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds  (Heavy Traffic)
 const uint32_t MAX_TRY_TIMES=1;
 #endif
 
-const double NOISE_POWER_W = 4.01237e-13;
+const double NOISE_POWER_W = 1.5849e-13;
+//const double NOISE_POWER_W = 4.01237e-13;
 const double DEFAULT_INTERFERENCE_W = 2.00e-16; //
 const uint32_t NORMAL_SAMPLE_INTERVAL = 150; //microsecods
 const uint32_t DATA_INTERFERENCE_SAMPLE_INTERVAL = 20;
@@ -166,7 +166,8 @@ const uint32_t ER_INFO_ITEM_CATEGORY_ONE = 1;
 const uint32_t ER_INFO_ITEM_CATEGORY_TWO = 2;
 #if defined (SMALL_NETWORK)
 const uint16_t INVALID_SENDER = 190;
-const uint16_t NETWORK_SIZE = 125;
+//const uint16_t NETWORK_SIZE = 125;
+const uint16_t NETWORK_SIZE = 123;
 #elif defined (LARGE_NETWORK)
 const uint16_t INVALID_SENDER = 280;
 const uint16_t NETWORK_SIZE = 270;
@@ -207,7 +208,7 @@ const uint32_t ONE_MILLISECOND = 1000000;// nano seconds
 
 const uint32_t ITEM_LIFE_TIMESLOT = 8000;
 const double DEFAULT_TX_PROBABILITY = 1;
-const uint32_t INFO_ITEM_SUM = 3000;
+const uint32_t INFO_ITEM_SUM = 10000;
 const uint32_t QUEUE_SIZE = 10000;
 const double DEFAULT_PACKET_GENERATION_PROBABILITY = 1;
 const int64_t UNDEFINED_NEXT_TX_SLOT = 32768;

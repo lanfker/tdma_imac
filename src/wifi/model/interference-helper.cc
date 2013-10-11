@@ -29,6 +29,7 @@
 #include <string>
 #include <sstream>
 #include "quick-sort.h"
+#include "settings.h"
 NS_LOG_COMPONENT_DEFINE ("InterferenceHelper");
 
 namespace ns3 {
@@ -270,11 +271,12 @@ InterferenceHelper::CalculateSnr (double signal, double noiseInterference, WifiM
   
   // receiver noise Floor (W) which accounts for thermal noise and non-idealities of the receiver
   double noiseFloorW = m_noiseFigure * Nt;
-  noiseFloorW = 4.01237e-13; // similar to NetEye
+  noiseFloorW = NOISE_POWER_W; // similar to NetEye
   m_noiseW = noiseFloorW; // m_noiseW is in the unit of Watt
 
   double noise = noiseFloorW + noiseInterference;
   double snr = signal / noise;
+  //std::cout<<" in calculate_snr, snr is: "<< snr << std::endl;
   return snr;
 }
 
@@ -292,7 +294,7 @@ double InterferenceHelper::GetNoise ()
 {
   if ( m_noiseW < 0)
   {
-    m_noiseW = 4.01237e-13;
+    m_noiseW = NOISE_POWER_W;
   }
   return m_noiseW;
 }
@@ -596,6 +598,12 @@ InterferenceHelper::CalculateSnrPer (Ptr<InterferenceHelper::Event> event)
   struct SnrPer snrPer;
   snrPer.snr = snr;
   snrPer.per = per;
+  /*
+  if (Simulator::Now () >= Simulator::LearningTimeDuration )
+  {
+    std::cout<<"in calculatesnrper: " <<" snr: "<<snr<<" per: "<< per<< std::endl;
+  }
+  */
   return snrPer;
 }
 

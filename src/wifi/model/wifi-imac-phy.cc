@@ -184,7 +184,7 @@ namespace ns3 {
     // the default value 
     m_erEdgeInterferenceW = DEFAULT_INITIAL_EDGE;  // the interference power at 1.5 transmission range. Computed by Matlab. This initial value seems of no use.
     m_noiseW = NOISE_POWER_W;
-    m_whiteGaussianNoise = NormalVariable (0, 1); // White noise with mean 0 and variance 1.
+    m_whiteGaussianNoise = NormalVariable (0, 4); // White noise with mean 0 and variance 1.
     m_initialPowerLevel = MAX_TX_POWER_LEVEL; // the power level of the beacon message in the learning process of the iMAC
   }
 
@@ -675,6 +675,7 @@ switchChannel:
     if ( returnAddress != Mac48Address::GetBroadcast())
     {
       double distance = m_channel->GetDistanceBetweenNodes (m_self, returnAddress);
+      //std::cout<<" rxPowerDbm: "<< m_channel->GetRxPowerByDistance (GetPowerDbm (0) + GetTxGain (), distance) + GetRxGain () << std::endl;
 #ifndef RID_INITIAL_ER
       double edgePowerDbm = m_channel->GetRxPowerByDistance (GetPowerDbm (0) + GetTxGain (), distance * 1.5) + GetRxGain (); 
       double initialErInterferenceW = DbmToW (edgePowerDbm);
@@ -784,6 +785,12 @@ switchChannel:
       WifiMacHeader hdr;
       packet->PeekHeader(hdr); 
 
+      /*
+      if (Simulator::Now () >= Simulator::LearningTimeDuration && hdr.GetAddr1 () == m_self)
+      {
+        std::cout<<m_self<<" rxPowerDbm: "<< rxPowerDbm << std::endl;
+      }
+      */
       Ptr<InterferenceHelper::Event> event;
       // Register the concurrent transmitters.
       event = m_interference.Add (packet->GetSize (), txMode, preamble, rxDuration, rxPowerW);
@@ -1042,6 +1049,7 @@ maybeCcaBusy:
         return;
       }
     }
+    //std::cout<<" txpower: "<< txPower + m_txGainDb <<" double"<< std::endl;
     m_channel->Send (this, pkt, txPower + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
     //std::cout<<m_self.GetNodeId ()<<" 1041 packet size: "<<pkt->GetSize () << std::endl;
   }
@@ -1116,6 +1124,7 @@ maybeCcaBusy:
           txPower = m_initialPowerLevel; // send packet in a large enough power level to enable the learning process 
         }
       }
+      //std::cout<<" txpower: "<< GetPowerDbm (txPower) + m_txGainDb<<" level: "<< txPower <<" txgain: "<< m_txGainDb << std::endl;
       m_channel->Send (this, pkt, GetPowerDbm (txPower) + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
       
       //std::cout<<m_self.GetNodeId ()<<" 1115 packet size: "<<pkt->GetSize () << std::endl;
@@ -1426,6 +1435,7 @@ maybeCcaBusy:
         }
 #else
           std::cout<<"17: "<<hdr.GetAddr2 ().GetNodeId ()<<" "<< m_self.GetNodeId ()<<" " << 10*log10(snrPer.snr) << " " << snrPer.per <<" "<<GetConcurrentTxNo ()<< std::endl;
+          //std::cout<<"in endreceive:  snr: "<< snrPer.snr << std::endl;
 #endif
       }
 
@@ -1494,7 +1504,11 @@ if ( find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), linkI
   */
   double WifiImacPhy::GetCurrentNoiseW () const
   {
-    return m_noiseW + m_whiteGaussianNoise.GetValue () * 1.0e-13;
+    double normalNoise = WToDbm (m_noiseW); //dBm
+    double noiseVariation = m_whiteGaussianNoise.GetValue (); // dBm
+    noiseVariation = 0;
+    double totalNoise = normalNoise + noiseVariation; //dBm
+    return DbmToW (totalNoise);
   }
   double WifiImacPhy::GetCurrentInterferenceW ()
   {
