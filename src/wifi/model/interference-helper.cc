@@ -680,7 +680,9 @@ double InterferenceHelper::ExpectedPdr(double snr, uint32_t length)
   */
   double B_N = 2000;
   double R=250*8;
-  double ber = m_mathHelper.gsl_cdf_ugaussian_Q ( sqrt (snr * 2 * B_N/R));
+  snr = pow (10, snr/10);
+  double ber = m_mathHelper.NormCdf ( sqrt (snr * 2 * B_N/R));
+  //std::cout<<"m_mathHelper.NormCdf (0.5): "<<m_mathHelper.NormCdf ( 0.5) << std::endl;
   double pdr = pow ((1-ber), length);
   return pdr > 1.0 ? 1 : pdr;
 }

@@ -3,8 +3,8 @@
 
 
 // we need this one if we are running PRKS, otherwise packet will become extremely long and cause PRKS's malfunctioning
-#ifndef PRKS
-#define PRKS
+#ifndef RETRANSMISSION_ENABLE
+#define RETRANSMISSION_ENABLE
 #endif
 /*
 #ifndef CONVERGECAST
