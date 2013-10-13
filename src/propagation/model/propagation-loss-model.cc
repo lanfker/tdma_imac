@@ -432,8 +432,8 @@ LogDistancePropagationLossModel::GetTypeId (void)
                    MakeDoubleChecker<double> ())
     .AddAttribute ("ReferenceLoss",
                    "The reference loss at reference distance (dB). (Default is Friis at 1m with 5.15 GHz)",
-                   //DoubleValue (46.6777),
-                   DoubleValue (52.1), //Set according to NetEye parameters shared by Xiaohui.
+                   DoubleValue (46.6777),
+                   //DoubleValue (52.1), //Set according to NetEye parameters shared by Xiaohui.
                    MakeDoubleAccessor (&LogDistancePropagationLossModel::m_referenceLoss),
                    MakeDoubleChecker<double> ())
   ;

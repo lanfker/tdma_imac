@@ -110,8 +110,8 @@ const uint64_t PACKET_GENERATION_INTERVAL = 8; // milliseconds  (Heavy Traffic)
 const uint32_t MAX_TRY_TIMES=1;
 #endif
 
-const double NOISE_POWER_W = 1.5849e-13;
-//const double NOISE_POWER_W = 4.01237e-13;
+//const double NOISE_POWER_W = 1.5849e-13;
+const double NOISE_POWER_W = 4.01237e-13;
 const double DEFAULT_INTERFERENCE_W = 2.00e-16; //
 const uint32_t NORMAL_SAMPLE_INTERVAL = 150; //microsecods
 const uint32_t DATA_INTERFERENCE_SAMPLE_INTERVAL = 20;
@@ -166,8 +166,8 @@ const uint32_t ER_INFO_ITEM_CATEGORY_ONE = 1;
 const uint32_t ER_INFO_ITEM_CATEGORY_TWO = 2;
 #if defined (SMALL_NETWORK)
 const uint16_t INVALID_SENDER = 190;
-//const uint16_t NETWORK_SIZE = 125;
-const uint16_t NETWORK_SIZE = 123;
+const uint16_t NETWORK_SIZE = 125;
+//const uint16_t NETWORK_SIZE = 123;
 #elif defined (LARGE_NETWORK)
 const uint16_t INVALID_SENDER = 280;
 const uint16_t NETWORK_SIZE = 270;

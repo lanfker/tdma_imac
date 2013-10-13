@@ -1953,7 +1953,7 @@ rxPacket:
 #if defined (TX_POWER_HETEROGENEITY)
         double tx_power = imacPhy-> GetPowerDbmWithFixedSnr (hdr->GetAddr2 (), hdr->GetAddr1 ());
 #else
-        double tx_power = -25;
+        double tx_power = NORMAL_TX_POWER; //-25 dBm
 #endif
         if ( Simulator::Now () >= Simulator::LearningTimeDuration )
         {
@@ -1966,7 +1966,7 @@ rxPacket:
 #if defined (TX_POWER_HETEROGENEITY)
         double tx_power = imacPhy-> GetPowerDbmWithFixedSnr (hdr->GetAddr1 (), m_self);
 #else
-        double tx_power = -25;
+        double tx_power = NORMAL_TX_POWER; //-25 dBm
 #endif
         imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
       }
