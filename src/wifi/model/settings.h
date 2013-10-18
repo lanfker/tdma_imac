@@ -3,8 +3,8 @@
 
 
 // we need this one if we are running PRKS, otherwise packet will become extremely long and cause PRKS's malfunctioning
-#ifndef RETRANSMISSION_ENABLE
-#define RETRANSMISSION_ENABLE
+#ifndef RETRANSMISSION_DISABLE
+#define RETRANSMISSION_DISABLE
 #endif
 /*
 #ifndef CONVERGECAST
@@ -64,9 +64,9 @@
 
 //#define ENABLE_RID  //Take effect in controller.cc
 
-#define MIN_VARIANCE_CONTROLLER
+//#define MIN_VARIANCE_CONTROLLER
 
-//#define P_CONTROLLER_DESIRED_PDR
+#define P_CONTROLLER_DESIRED_PDR
 
 //#define P_CONTROLLER_REFERENCE_I
 

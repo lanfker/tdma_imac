@@ -3742,7 +3742,7 @@ rxPacket:
       pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
       m_packetQueue.front () = pkt;
     }
-#ifdef RETRANSMISSION_ENABLE  // does not need packet re-transmission
+#ifdef RETRANSMISSION_DISABLE  // does not need packet re-transmission
     m_packetQueue.erase (m_packetQueue.begin ()); 
 #endif
     if (pkt != NULL && m_retransmissionTimes != 0) // if this transmission is actually for retransmission, we need to remove header and trailer since pkt is a pointer. In previous transmission, we have added header and trailer for this packet. If we do not remove header and trailer, we will end up with increasing packet size
@@ -4544,7 +4544,7 @@ rxPacket:
         if ( Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0)
         {
           m_packetQueue.front () = pkt;
-#ifdef RETRANSMISSION_ENABLE  // does not need packet re-transmission
+#ifdef RETRANSMISSION_DISABLE  // does not need packet re-transmission
           m_packetQueue.erase (m_packetQueue.begin ()); 
 #endif
         }

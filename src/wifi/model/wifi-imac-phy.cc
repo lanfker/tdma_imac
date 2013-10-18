@@ -1049,7 +1049,7 @@ maybeCcaBusy:
         return;
       }
     }
-    //std::cout<<" txpower: "<< txPower + m_txGainDb <<" double"<< std::endl;
+    std::cout<<" txpower: "<< txPower + m_txGainDb <<" double"<< std::endl;
     m_channel->Send (this, pkt, txPower + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
     //std::cout<<m_self.GetNodeId ()<<" 1041 packet size: "<<pkt->GetSize () << std::endl;
   }

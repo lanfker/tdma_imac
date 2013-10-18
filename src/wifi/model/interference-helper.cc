@@ -680,10 +680,14 @@ double InterferenceHelper::ExpectedPdr(double snr, uint32_t length)
   */
   double B_N = 2000;
   double R=250*8;
+  //std::cout<<"before_snr: "<<snr<<" length: "<<length;
   snr = pow (10, snr/10);
-  double ber = m_mathHelper.NormCdf ( sqrt (snr * 2 * B_N/R));
-  //std::cout<<"m_mathHelper.NormCdf (0.5): "<<m_mathHelper.NormCdf ( 0.5) << std::endl;
+  //std::cout<<" after_snr: "<<snr;
+  double ber = 1 - m_mathHelper.NormCdf ( sqrt (snr * 2 * B_N/R));
+  std::cout<<"NormCdf: "<<1 - m_mathHelper.NormCdf ( sqrt(snr * 2 * B_N/R)) << std::endl;
+  std::cout<<"gsl_cdf_ugaussian_Q: "<<m_mathHelper.gsl_cdf_ugaussian_Q ( sqrt(snr * 2 * B_N/R)) << std::endl;
   double pdr = pow ((1-ber), length);
+  //std::cout<<" pdr: "<< (pdr > 1.0 ? 1 : pdr) << std::endl;
   return pdr > 1.0 ? 1 : pdr;
 }
 
