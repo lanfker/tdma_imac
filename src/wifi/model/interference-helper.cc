@@ -663,31 +663,11 @@ double InterferenceHelper::ExpectedPdr(double snr, uint32_t length)
   {
     return 1.0;
   }
-  /*
-  double gamma_0e = m_mathHelper.PdrToGamma (0.001, length), gamma_1e = m_mathHelper.PdrToGamma (0.999, length), 
-         gamma_A = m_mathHelper.PdrToGamma (0.1, length), gamma_B = m_mathHelper.PdrToGamma (0.9, length);
-  double m_ge = (m_mathHelper.NormPdf (gamma_1e, snr, sigma) - m_mathHelper.NormPdf (gamma_0e, snr, sigma) )
-    / (gamma_1e - gamma_0e);
-  double b_ge = (m_mathHelper.NormPdf (gamma_0e, snr, sigma) * gamma_1e - m_mathHelper.NormPdf (gamma_1e,
-        snr , sigma) * gamma_0e) / (gamma_1e - gamma_0e);
-  double m_e = (0.9 - 0.1)/ (gamma_B - gamma_A);
-  double b_e = (0.1 * gamma_B - 0.9 * gamma_A) / (gamma_B - gamma_A);
-  //double Q = m_mathHelper.NormCdf ( (snr - gamma_1e) / sigma); // get the cdf according to standard normal distribution
-
-  double pdr = ((m_e * m_ge) * pow (gamma_1e, 3) / 3 + (b_e * m_ge + b_ge * m_e) * pow (gamma_1e, 2) /
-      2 + b_e * b_ge * gamma_1e) - ((m_e * m_ge) * pow (gamma_0e, 3) / 3 + (b_e * m_ge + b_ge * m_e) *
-      pow (gamma_0e, 2) / 2 + b_e * b_ge * gamma_0e) + m_mathHelper.NormCdf ((snr - gamma_1e) / sigma);
-  */
   double B_N = 2000;
   double R=250*8;
-  //std::cout<<"before_snr: "<<snr<<" length: "<<length;
   snr = pow (10, snr/10);
-  //std::cout<<" after_snr: "<<snr;
   double ber = 1 - m_mathHelper.NormCdf ( sqrt (snr * 2 * B_N/R));
-  std::cout<<"NormCdf: "<<1 - m_mathHelper.NormCdf ( sqrt(snr * 2 * B_N/R)) << std::endl;
-  std::cout<<"gsl_cdf_ugaussian_Q: "<<m_mathHelper.gsl_cdf_ugaussian_Q ( sqrt(snr * 2 * B_N/R)) << std::endl;
   double pdr = pow ((1-ber), length);
-  //std::cout<<" pdr: "<< (pdr > 1.0 ? 1 : pdr) << std::endl;
   return pdr > 1.0 ? 1 : pdr;
 }
 
