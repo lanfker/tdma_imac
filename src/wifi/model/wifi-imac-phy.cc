@@ -184,6 +184,7 @@ DoubleValue (ENERGY_DETECTION_THRESHOLD),
     // the default value 
     m_erEdgeInterferenceW = DEFAULT_INITIAL_EDGE;  // the interference power at 1.5 transmission range. Computed by Matlab. This initial value seems of no use.
     m_noiseW = NOISE_POWER_W;
+    m_rxPowerDeviation = NormalVariable (0, RX_POWER_DEVIATION_FACTOR);
     m_initialPowerLevel = MAX_TX_POWER_LEVEL; // the power level of the beacon message in the learning process of the iMAC
   }
 
@@ -775,7 +776,7 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
 
 
       rxPowerDbm += m_rxGainDb;
-      m_rxPowerDbm = rxPowerDbm;
+      m_rxPowerDbm = rxPowerDbm + m_rxPowerDeviation.GetValue ();
       double rxPowerW = DbmToW (rxPowerDbm);
       Time rxDuration = CalculateTxDuration (packet->GetSize (), txMode, preamble);
       Time endRx = Simulator::Now () + rxDuration;

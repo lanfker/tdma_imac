@@ -137,6 +137,7 @@ private:
   std::string GetPerDetails () const;
   void UpdateReceivedPowerW (double rxPowerW);
   double FindQuantileValue (double quantile, double removeValue, double addValue, std::vector<double> vec);
+  uint32_t Combinations (uint32_t n, uint32_t k);
 /*********************************************PRIVATE **************************************************************/
 private:
   class NiChange

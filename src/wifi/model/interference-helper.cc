@@ -390,9 +390,7 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
   
   m_perDetails.clear ();
   double noiseInterferenceW = 0.0;
-#if !defined (RANDOMIZE_CHANNEL)
   double snr = 0.0; 
-#endif
   double pdr = 1.0;
   NiChanges::iterator it = ni->begin ();
   Time previous = (*it).GetTime ();
@@ -434,8 +432,8 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
       for (uint32_t i=0; i <nBytes; ++ i)
       {
         //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        double noiseW = NOISE_POWER_W;
-        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+      snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        tempPdr = ExpectedPdr (snr, 1);
         pdr *= tempPdr>1?1:tempPdr;
       }
 #else
@@ -470,9 +468,9 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
       for (uint32_t i=0; i <nBytes; ++ i)
       {
         //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        double noiseW = NOISE_POWER_W;
-        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
-        //tempPdr = ExpectedPdr (snr, 1);
+        //tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+      snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        tempPdr = ExpectedPdr (snr, 1);
         pdr *= tempPdr>1?1:tempPdr;
       }
 #else
@@ -502,9 +500,8 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
       for (uint32_t i=0; i <nBytes; ++ i)
       {
         //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        double noiseW = NOISE_POWER_W;
-        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
-        //tempPdr = ExpectedPdr (snr, 1);
+      snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        tempPdr = ExpectedPdr (snr, 1);
         pdr *= tempPdr>1?1:tempPdr;
       }
 #else
@@ -537,9 +534,9 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
       for (uint32_t i=0; i <nBytes; ++ i)
       {
         //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        double noiseW = NOISE_POWER_W;
-        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
-        //tempPdr = ExpectedPdr (snr, 1);
+        //tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+      snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        tempPdr = ExpectedPdr (snr, 1);
         pdr *= tempPdr>1?1:tempPdr;
       }
 #else
@@ -575,9 +572,8 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
       for (uint32_t i=0; i <nBytes; ++ i)
       {
         //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        double noiseW = NOISE_POWER_W;
-        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
-        //tempPdr = ExpectedPdr (snr, 1);
+      snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        tempPdr = ExpectedPdr (snr, 1);
         pdr *= tempPdr>1?1:tempPdr;
       }
 #else
@@ -607,9 +603,8 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
       for (uint32_t i=0; i <nBytes; ++ i)
       {
         //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        double noiseW = NOISE_POWER_W;
-        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
-        //tempPdr = ExpectedPdr (snr, 1);
+      snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        tempPdr = ExpectedPdr (snr, 1);
         pdr *= tempPdr>1?1:tempPdr;
       }
 #else
@@ -642,9 +637,9 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
       for (uint32_t i=0; i <nBytes; ++ i)
       {
         //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        double noiseW = NOISE_POWER_W;
-        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
-        //tempPdr = ExpectedPdr (snr, 1);
+      snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        //tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+        tempPdr = ExpectedPdr (snr, 1);
         pdr *= tempPdr>1?1:tempPdr;
       }
 #else
@@ -758,11 +753,23 @@ double InterferenceHelper::ExpectedPdr(double snr, uint32_t length)
   {
     return 1.0;
   }
+  /*
   double B_N = 2000;
   double R=250*8;
   //snr = pow (10, snr/10);
   double ber = 1 - m_mathHelper.NormCdf ( sqrt (snr * 2 * B_N/R));
   double pdr = pow ((1-ber), length);
+  return pdr > 1.0 ? 1 : pdr;
+  */
+
+  /***********************************using cc2420 radio formula*************************************/
+  double summation = 0;
+  for (uint32_t k = 2; k <= 16; ++ k)
+  {
+    summation += ((-1)^k) * Combinations (16, k) * pow (CONST_E, 20*snr*(1.0/k - 1));
+  }
+  double ber = summation * 1.0/30.0;
+  double pdr = pow ((1 - ber), (8*length));
   return pdr > 1.0 ? 1 : pdr;
 }
 
@@ -1137,5 +1144,18 @@ double InterferenceHelper::FindQuantileValue (double quantile, double removeValu
   index = index == 0 ? index : index - 1; // index starts from 0 to n-1, minus 1
   QuickSort quick(&m_dataInterferenceSamples_ControlChannel_Copy); // asending sort
   return m_dataInterferenceSamples_ControlChannel_Copy[index];
+}
+
+uint32_t InterferenceHelper::Combinations (uint32_t n, uint32_t k)
+{
+  if (k > n)
+    return 0;
+  uint32_t r = 1;
+  for (uint32_t d = 1; d <= k; ++ d)
+  {
+    r *= n--;
+    r /= d;
+  }
+  return r;
 }
 } // namespace ns3
