@@ -6,7 +6,7 @@
 #include "ns3/applications-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/log.h"
-#include "ns3/settings.h"
+#include "ns3/simulator.h"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
@@ -18,13 +18,7 @@ using namespace std;
 using namespace ns3;
 NS_LOG_COMPONENT_DEFINE("iMac");
 
-const uint32_t MAX_RANDOM_SEED = 100000;
-const uint32_t MAX_RUN_NUMBER = 100;
-const uint32_t APP_START_TIME = 0;
-const uint32_t APP_END_TIME = 120;
-const double TRAFFIC_GENERATION_PROBABILITY = 1;
 
-#define SMALL_NETWORK
 
 int main(int argc, char *argv[])
 {
@@ -38,7 +32,9 @@ int main(int argc, char *argv[])
 
   LogComponentEnable ("ImacRandomTrafficGenerator", LOG_LEVEL_DEBUG);
 #if defined (SMALL_NETWORK)
-  const char* TopologyFilePath = "scratch/data5x5x5.txt";
+  //const char* TopologyFilePath = "scratch/data5x5x5.txt";
+  const char* TopologyFilePath = "scratch/data1x1.txt";
+  //const char* TopologyFilePath = "scratch/grid_data.txt";
   //const char* TopologyFilePath = "scratch/data5x5x5_with_neteye_channel_parameters.txt";
 #elif defined (LARGE_NETWORK)
   const char* TopologyFilePath = "scratch/data5x7x7.txt";

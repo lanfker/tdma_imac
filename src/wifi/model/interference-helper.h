@@ -26,12 +26,12 @@
 #include <vector>
 #include <list>
 #include "wifi-mode.h"
+#include "ns3/random-variable.h"
 #include "wifi-preamble.h"
 #include "wifi-phy-standard.h"
 #include "ns3/nstime.h"
 #include "ns3/simple-ref-count.h"
 #include "ns3/mac48-address.h"
-#include "settings.h"
 
 
 namespace ns3 {
@@ -89,6 +89,7 @@ private:
   Mac48Address GetAddress () const;
 
   double ExpectedPdr(double snr, uint32_t length );
+  double ExpectedPdr(double powerW, double noiseW, double interferenceW, uint32_t length );
 
   /**
    * \param energyW the minimum energy (W) requested
@@ -200,6 +201,7 @@ private:
   double m_varianceDataInterferenceW;
   double m_meanAckInterferenceW;
   double m_varianceAckInterferenceW;
+  NormalVariable m_whiteGaussianNoise;
 };
 
 } // namespace ns3

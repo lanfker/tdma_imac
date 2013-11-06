@@ -43,7 +43,6 @@
 #include "qos-utils.h"
 #include "block-ack-cache.h"
 #include "wifi-imac-phy.h"
-#include "settings.h"
 
 namespace ns3 {
   class WifiPhy;

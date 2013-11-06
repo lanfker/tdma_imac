@@ -49,7 +49,6 @@
 #include <cstdlib>
 #include <cmath>
 #include "quick-sort.h"
-//#include "settings.h"
 NS_LOG_COMPONENT_DEFINE ("MacLow");
 
 #undef NS_LOG_APPEND_CONTEXT
@@ -1416,7 +1415,7 @@ namespace ns3 {
         {
           m_incrementReTxTimesEvent.Cancel ();
         }
-        std::cout<<Simulator::Now () <<" "<<m_self.GetNodeId ()<<" m_packetQueue.size: "<< m_packetQueue.size () << std::endl;
+        //std::cout<<Simulator::Now () <<" "<<m_self.GetNodeId ()<<" m_packetQueue.size: "<< m_packetQueue.size () << std::endl;
         m_packetQueue.erase (m_packetQueue.begin ());
         m_retransmissionTimes = 0;
       }
@@ -1425,7 +1424,7 @@ namespace ns3 {
       {
         m_incrementReTxTimesEvent.Cancel ();
       }
-      std::cout<<Simulator::Now ()<<" " <<m_self.GetNodeId ()<<" m_packetQueue.size: "<< m_packetQueue.size () << std::endl;
+      //std::cout<<Simulator::Now ()<<" " <<m_self.GetNodeId ()<<" m_packetQueue.size: "<< m_packetQueue.size () << std::endl;
       m_packetQueue.erase (m_packetQueue.begin ());
       m_retransmissionTimes = 0;
 #endif
@@ -1556,7 +1555,7 @@ namespace ns3 {
           Ptr<Packet> s = packet->Copy (); 
           if (IsDuplicatePacket  (s) != true)
           {
-            std::cout<<" 1537: added here" << std::endl;
+            //std::cout<<" 1537: added here" << std::endl;
             m_packetQueue.push_back (s);
           }
         }
@@ -1564,7 +1563,7 @@ namespace ns3 {
           Ptr<Packet> s = packet->Copy (); 
           if (IsDuplicatePacket  (s) != true)
           {
-            std::cout<<" 1545: added here" << std::endl;
+            //std::cout<<" 1545: added here" << std::endl;
             m_packetQueue.push_back (s);
           }
 #endif
@@ -3023,7 +3022,7 @@ rxPacket:
             double deltaIU = tempPhy->DbmToW (linkMetaData.interferenceNowDbm) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm + linkMetaData.lastComputedDeltaInterferenceDb);
             linkMetaData.muBWatt = m_ewmaCoefficient * linkMetaData.muBWatt + (1-m_ewmaCoefficient)*(deltaIU - linkMetaData.lastDeltaIU);
             linkMetaData.lastDeltaIU = deltaIU;
-            std::cout<<m_self.GetNodeId () <<" "<<Simulator::Now () <<" mu_U: "<<linkMetaData.muBWatt<< std::endl; 
+            //std::cout<<m_self.GetNodeId () <<" "<<Simulator::Now () <<" mu_U: "<<linkMetaData.muBWatt<< std::endl; 
 #endif
             double deltaIM = tempPhy->DbmToW (linkMetaData.interferenceNowDbm) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm);
             double previousDeltaIR = tempPhy->DbmToW (linkMetaData.interferencePreviousDbm + linkMetaData.lastComputedDeltaInterferenceDb) - tempPhy->DbmToW (linkMetaData.interferencePreviousDbm) - linkMetaData.muBWatt;
@@ -3042,7 +3041,7 @@ rxPacket:
           expectedInterferenceDbm = tempPhy->WToDbm (it->DataInterferenceW + tempPhy->GetCurrentNoiseW ()) + deltaInterferenceDb;
           expectedInterferenceWatt = tempPhy->DbmToW (expectedInterferenceDbm);
           deltaInterferenceWatt = expectedInterferenceWatt - it->DataInterferenceW  - tempPhy->GetCurrentNoiseW ()- linkMetaData.muBWatt;
-          //std::cout<<m_self<<" from: "<<sender<< " expected interference "<< ex     pectedInterferenceWatt<< " newDelta_I_R: "<<deltaInterferenceWatt<<" deltaInter     ferenceW before muBWatt: "<<expectedInterferenceWatt - it->DataInterferenceW  -      tempPhy->GetCurrentNoiseW ()<< " interferenceW: "<<it->DataInterferenceW  + te     mpPhy->GetCurrentNoiseW ()<<" erSize: "<<tempPhy->GetErSize (it->LastDataErEdge     InterferenceW)<< " concurrentTxNO: "<< tempPhy->GetConcurrentTxNo ()<<" pure_in     terferenceW: "<<it->DataInterferenceW << std::endl;
+          //std::cout<<m_self<<" from: "<<sender<< " expected interference "<< expectedInterferenceWatt<< " newDelta_I_R: "<<deltaInterferenceWatt<<" deltaInterferenceW before muBWatt: "<<expectedInterferenceWatt - it->DataInterferenceW  - tempPhy->GetCurrentNoiseW ()<< " interferenceW: "<<it->DataInterferenceW  + tempPhy->GetCurrentNoiseW ()<<" erSize: "<<tempPhy->GetErSize (it->LastDataErEdgeInterferenceW)<< " concurrentTxNO: "<< tempPhy->GetConcurrentTxNo ()<<" pure_interferenceW: "<<it->DataInterferenceW << std::endl;
           std::cout<<"11: "<<m_self.GetNodeId ()<<" "<<sender.GetNodeId ()<< " "<< expectedInterferenceWatt<< " "<<deltaInterferenceWatt<<" "<<expectedInterferenceWatt - it->DataInterferenceW  - tempPhy->GetCurrentNoiseW ()<< " "<<it->DataInterferenceW  + tempPhy->GetCurrentNoiseW ()<<" "<<tempPhy->GetErSize (it->LastDataErEdgeInterferenceW)<< " "<< tempPhy->GetConcurrentTxNo ()<<" "<<it->DataInterferenceW << std::endl; 
           if (deltaInterferenceDb != 0 && deltaInterferenceWatt == 0)
           {

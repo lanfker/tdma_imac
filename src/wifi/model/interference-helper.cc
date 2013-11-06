@@ -29,7 +29,6 @@
 #include <string>
 #include <sstream>
 #include "quick-sort.h"
-#include "settings.h"
 NS_LOG_COMPONENT_DEFINE ("InterferenceHelper");
 
 namespace ns3 {
@@ -145,6 +144,7 @@ InterferenceHelper::InterferenceHelper ()
   m_varianceDataInterferenceW = 0;
   m_meanAckInterferenceW = 0;
   m_varianceAckInterferenceW = 0;
+  m_whiteGaussianNoise = NormalVariable (0, NOISE_VARIATION_FACTOR); // White noise with mean 0 and variance 4. in dB
 }
 InterferenceHelper::~InterferenceHelper ()
 {
@@ -271,8 +271,17 @@ InterferenceHelper::CalculateSnr (double signal, double noiseInterference, WifiM
   
   // receiver noise Floor (W) which accounts for thermal noise and non-idealities of the receiver
   double noiseFloorW = m_noiseFigure * Nt;
-  noiseFloorW = NOISE_POWER_W; // similar to NetEye
+/*
+#if defined (RANDOMIZE_CHANNEL)
+  double noiseVariationDb = m_whiteGaussianNoise.GetValue (); // dBm
+  // the formula to change dBm into Watt in latex form: $Watt = 10^{(dBm-30)/10}$
+  noiseFloorW = pow (10, (NOISE_POWER_DBM + noiseVariationDb - 30)/10); // similar to NetEye
   m_noiseW = noiseFloorW; // m_noiseW is in the unit of Watt
+#else
+  noiseFloorW = NOISE_POWER_W;
+#endif
+*/
+  noiseFloorW = NOISE_POWER_W;
 
   double noise = noiseFloorW + noiseInterference;
   double snr = signal / noise;
@@ -381,7 +390,9 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
   
   m_perDetails.clear ();
   double noiseInterferenceW = 0.0;
+#if !defined (RANDOMIZE_CHANNEL)
   double snr = 0.0; 
+#endif
   double pdr = 1.0;
   NiChanges::iterator it = ni->begin ();
   Time previous = (*it).GetTime ();
@@ -395,8 +406,8 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
   {
     //std::cout<<" payload phy rate: "<<payloadMode.GetPhyRate ()<<" header phy rate: "<< headerMode.GetPhyRate () << std::endl;
   }
-  m_perDetails.append (" GetDelta (): ");
-  m_perDetails.append (ToString (it->GetDelta ()));
+  //m_perDetails.append (" GetDelta (): ");
+  //m_perDetails.append (ToString (it->GetDelta ()));
   it ++;
   double powerW = event->GetRxPowerW ();
   for (; it != ni->end (); ++ it)
@@ -416,22 +427,33 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
       duration = current - previous;
       nbits = (uint64_t)(rate * duration.GetSeconds ());
       nBytes = nbits%8!=0? 1 + nbits/8: nbits/8; 
+      std::cout<<Simulator::Now () <<" nBytes: "<< nBytes << std::endl;
       double tempPdr = 0.0; 
 
+#if defined (RANDOMIZE_CHANNEL)
+      for (uint32_t i=0; i <nBytes; ++ i)
+      {
+        //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        double noiseW = NOISE_POWER_W;
+        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+        pdr *= tempPdr>1?1:tempPdr;
+      }
+#else
       snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-      //snr = 10.0 * log10 (snr);
+      snr = 10.0 * log10 (snr);
       tempPdr = ExpectedPdr(snr, nBytes);
       pdr *= tempPdr>1?1:tempPdr;
-      m_perDetails.append (" &&_N+I: ");
-      m_perDetails.append (ToString(noiseInterferenceW));
-      m_perDetails.append (" csr: ");
-      m_perDetails.append (ToString (tempPdr));
-      m_perDetails.append (" snr: ");
-      m_perDetails.append (ToString (10*log10(snr)));
-      m_perDetails.append (" nBytes: ");
-      m_perDetails.append (ToString (nBytes));
-      m_perDetails.append (" current_pdr: ");
-      m_perDetails.append (ToString (pdr));
+#endif
+      //m_perDetails.append (" &&_N+I: ");
+      //m_perDetails.append (ToString(noiseInterferenceW));
+      //m_perDetails.append (" csr: ");
+      //m_perDetails.append (ToString (tempPdr));
+      //m_perDetails.append (" snr: ");
+      //m_perDetails.append (ToString (10*log10(snr)));
+      //m_perDetails.append (" nBytes: ");
+      //m_perDetails.append (ToString (nBytes));
+      //m_perDetails.append (" current_pdr: ");
+      //m_perDetails.append (ToString (pdr));
     }
     else if ( previous >= plcpHeaderStart)
     {
@@ -441,42 +463,66 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
         duration = plcpPayloadStart - previous;
         nbits = (uint64_t)(rate * duration.GetSeconds ());
         nBytes = nbits%8!=0? 1 + nbits/8: nbits/8;
+      std::cout<<Simulator::Now () <<" nBytes: "<< nBytes << std::endl;
         double tempPdr = 0.0; 
          
+#if defined (RANDOMIZE_CHANNEL)
+      for (uint32_t i=0; i <nBytes; ++ i)
+      {
+        //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        double noiseW = NOISE_POWER_W;
+        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+        //tempPdr = ExpectedPdr (snr, 1);
+        pdr *= tempPdr>1?1:tempPdr;
+      }
+#else
         snr = CalculateSnr (powerW, noiseInterferenceW, headerMode);
-        //snr = 10.0 * log10 (snr);
+        snr = 10.0 * log10 (snr);
         tempPdr = ExpectedPdr(snr,  nBytes);
         pdr *= tempPdr>1?1:tempPdr;
-        m_perDetails.append (" &&_N+I: ");
-        m_perDetails.append (ToString(noiseInterferenceW));
-        m_perDetails.append (" csr: ");
-        m_perDetails.append (ToString (tempPdr));
-        m_perDetails.append (" snr: ");
-        m_perDetails.append (ToString (10*log10(snr)));
-        m_perDetails.append (" nBytes: ");
-        m_perDetails.append (ToString (nBytes));
-        m_perDetails.append (" current_pdr: ");
-        m_perDetails.append (ToString (pdr));
+#endif
+        //m_perDetails.append (" &&_N+I: ");
+        //m_perDetails.append (ToString(noiseInterferenceW));
+        //m_perDetails.append (" csr: ");
+        //m_perDetails.append (ToString (tempPdr));
+        //m_perDetails.append (" snr: ");
+        //m_perDetails.append (ToString (10*log10(snr)));
+        //m_perDetails.append (" nBytes: ");
+        //m_perDetails.append (ToString (nBytes));
+        //m_perDetails.append (" current_pdr: ");
+        //m_perDetails.append (ToString (pdr));
 
         rate = payloadMode.GetPhyRate ();
         duration = current - plcpPayloadStart;
         nbits = (uint64_t)(rate*duration.GetSeconds ());
         nBytes = nbits%8!=0? 1 + nbits/8: nbits/8;
+      std::cout<<Simulator::Now () <<" nBytes: "<< nBytes << std::endl;
 
+#if defined (RANDOMIZE_CHANNEL)
+      for (uint32_t i=0; i <nBytes; ++ i)
+      {
+        //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        double noiseW = NOISE_POWER_W;
+        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+        //tempPdr = ExpectedPdr (snr, 1);
+        pdr *= tempPdr>1?1:tempPdr;
+      }
+#else
         snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        //snr = 10.0 * log10 (snr);
+        snr = 10.0 * log10 (snr);
         tempPdr = ExpectedPdr(snr, nBytes);
         pdr *= tempPdr>1?1:tempPdr;
-        m_perDetails.append (" &&_N+I: ");
-        m_perDetails.append (ToString(noiseInterferenceW));
-        m_perDetails.append (" csr: ");
-        m_perDetails.append (ToString (tempPdr));
-        m_perDetails.append (" snr: ");
-        m_perDetails.append (ToString (10*log10(snr)));
-        m_perDetails.append (" nBytes: ");
-        m_perDetails.append (ToString (nBytes));
-        m_perDetails.append (" current_pdr: ");
-        m_perDetails.append (ToString (pdr));
+#endif
+        //m_perDetails.append (" &&_N+I: ");
+        //m_perDetails.append (ToString(noiseInterferenceW));
+        //m_perDetails.append (" csr: ");
+        //m_perDetails.append (ToString (tempPdr));
+        //m_perDetails.append (" snr: ");
+        //m_perDetails.append (ToString (10*log10(snr)));
+        //m_perDetails.append (" nBytes: ");
+        //m_perDetails.append (ToString (nBytes));
+        //m_perDetails.append (" current_pdr: ");
+        //m_perDetails.append (ToString (pdr));
       }
       else if (current >= plcpHeaderStart)
       {
@@ -484,22 +530,34 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
         duration = plcpPayloadStart - previous;
         nbits = (uint64_t)(rate * duration.GetSeconds ());
         nBytes = nbits%8!=0? 1 + nbits/8: nbits/8; // get the n-bytes value
+      std::cout<<Simulator::Now () <<" nBytes: "<< nBytes << std::endl;
         double tempPdr = 0.0; 
         
+#if defined (RANDOMIZE_CHANNEL)
+      for (uint32_t i=0; i <nBytes; ++ i)
+      {
+        //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        double noiseW = NOISE_POWER_W;
+        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+        //tempPdr = ExpectedPdr (snr, 1);
+        pdr *= tempPdr>1?1:tempPdr;
+      }
+#else
         snr = CalculateSnr (powerW, noiseInterferenceW, headerMode);
-        //snr = 10.0 * log10 (snr);
+        snr = 10.0 * log10 (snr);
         tempPdr = ExpectedPdr(snr, nBytes);
         pdr *= tempPdr>1?1:tempPdr;
-        m_perDetails.append (" &&_N+I: ");
-        m_perDetails.append (ToString(noiseInterferenceW));
-        m_perDetails.append (" csr: ");
-        m_perDetails.append (ToString (tempPdr));
-        m_perDetails.append (" snr: ");
-        m_perDetails.append (ToString (10*log10(snr)));
-        m_perDetails.append (" nBytes: ");
-        m_perDetails.append (ToString (nBytes));
-        m_perDetails.append (" current_pdr: ");
-        m_perDetails.append (ToString (pdr));
+#endif
+        //m_perDetails.append (" &&_N+I: ");
+        //m_perDetails.append (ToString(noiseInterferenceW));
+        //m_perDetails.append (" csr: ");
+        //m_perDetails.append (ToString (tempPdr));
+        //m_perDetails.append (" snr: ");
+        //m_perDetails.append (ToString (10*log10(snr)));
+        //m_perDetails.append (" nBytes: ");
+        //m_perDetails.append (ToString (nBytes));
+        //m_perDetails.append (" current_pdr: ");
+        //m_perDetails.append (ToString (pdr));
       }
     }
     else 
@@ -510,42 +568,66 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
         duration = plcpPayloadStart - previous;
         nbits = (uint64_t)(rate * duration.GetSeconds ());
         nBytes = nbits%8!=0? 1 + nbits/8: nbits/8; // get the n-bytes value
+      std::cout<<Simulator::Now () <<" nBytes: "<< nBytes << std::endl;
         double tempPdr = 0.0; 
         
+#if defined (RANDOMIZE_CHANNEL)
+      for (uint32_t i=0; i <nBytes; ++ i)
+      {
+        //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        double noiseW = NOISE_POWER_W;
+        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+        //tempPdr = ExpectedPdr (snr, 1);
+        pdr *= tempPdr>1?1:tempPdr;
+      }
+#else
         snr = CalculateSnr (powerW, noiseInterferenceW, headerMode);
-        //snr = 10.0 * log10 (snr);
+        snr = 10.0 * log10 (snr);
         tempPdr = ExpectedPdr(snr, nBytes);
         pdr *= tempPdr>1?1:tempPdr;
-        m_perDetails.append (" &&_N+I: ");
-        m_perDetails.append (ToString(noiseInterferenceW));
-        m_perDetails.append (" csr: ");
-        m_perDetails.append (ToString (tempPdr));
-        m_perDetails.append (" snr: ");
-        m_perDetails.append (ToString (10*log10(snr)));
-        m_perDetails.append (" nBytes: ");
-        m_perDetails.append (ToString (nBytes));
-        m_perDetails.append (" current_pdr: ");
-        m_perDetails.append (ToString (pdr));
+#endif
+        //m_perDetails.append (" &&_N+I: ");
+        //m_perDetails.append (ToString(noiseInterferenceW));
+        //m_perDetails.append (" csr: ");
+        //m_perDetails.append (ToString (tempPdr));
+        //m_perDetails.append (" snr: ");
+        //m_perDetails.append (ToString (10*log10(snr)));
+        //m_perDetails.append (" nBytes: ");
+        //m_perDetails.append (ToString (nBytes));
+        //m_perDetails.append (" current_pdr: ");
+        //m_perDetails.append (ToString (pdr));
 
         rate = payloadMode.GetPhyRate ();
         duration = current - plcpPayloadStart;
         nbits = (uint64_t)(rate*duration.GetSeconds ());
         nBytes = nbits%8!=0? 1 + nbits/8: nbits/8;
+      std::cout<<Simulator::Now () <<" nBytes: "<< nBytes << std::endl;
         
+#if defined (RANDOMIZE_CHANNEL)
+      for (uint32_t i=0; i <nBytes; ++ i)
+      {
+        //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        double noiseW = NOISE_POWER_W;
+        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+        //tempPdr = ExpectedPdr (snr, 1);
+        pdr *= tempPdr>1?1:tempPdr;
+      }
+#else
         snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
-        //snr = 10.0 * log10 (snr);
+        snr = 10.0 * log10 (snr);
         tempPdr = ExpectedPdr(snr, nBytes);
         pdr *= tempPdr>1?1:tempPdr;
-        m_perDetails.append (" &&_N+I: ");
-        m_perDetails.append (ToString(noiseInterferenceW));
-        m_perDetails.append (" csr: ");
-        m_perDetails.append (ToString (tempPdr));
-        m_perDetails.append (" snr: ");
-        m_perDetails.append (ToString (10*log10(snr)));
-        m_perDetails.append (" nBytes: ");
-        m_perDetails.append (ToString (nBytes));
-        m_perDetails.append (" current_pdr: ");
-        m_perDetails.append (ToString (pdr));
+#endif
+        //m_perDetails.append (" &&_N+I: ");
+        //m_perDetails.append (ToString(noiseInterferenceW));
+        //m_perDetails.append (" csr: ");
+        //m_perDetails.append (ToString (tempPdr));
+        //m_perDetails.append (" snr: ");
+        //m_perDetails.append (ToString (10*log10(snr)));
+        //m_perDetails.append (" nBytes: ");
+        //m_perDetails.append (ToString (nBytes));
+        //m_perDetails.append (" current_pdr: ");
+        //m_perDetails.append (ToString (pdr));
       }
       else if (current >= plcpHeaderStart)
       {
@@ -553,30 +635,43 @@ InterferenceHelper::CalculatePer (Ptr<const InterferenceHelper::Event> event, Ni
         duration = plcpPayloadStart - previous;
         nbits = (uint64_t)(rate * duration.GetSeconds ());
         nBytes = nbits%8!=0? 1 + nbits/8: nbits/8; // get the n-bytes value
+      std::cout<<Simulator::Now () <<" nBytes: "<< nBytes << std::endl;
         double tempPdr = 0.0; 
         
+#if defined (RANDOMIZE_CHANNEL)
+      for (uint32_t i=0; i <nBytes; ++ i)
+      {
+        //snr = CalculateSnr (powerW, noiseInterferenceW, payloadMode);
+        double noiseW = NOISE_POWER_W;
+        tempPdr = ExpectedPdr (powerW, noiseW, noiseInterferenceW, 1);
+        //tempPdr = ExpectedPdr (snr, 1);
+        pdr *= tempPdr>1?1:tempPdr;
+      }
+#else
         snr = CalculateSnr (powerW, noiseInterferenceW, headerMode);
-        //snr = 10.0 * log10 (snr);
+        snr = 10.0 * log10 (snr);
         tempPdr = ExpectedPdr(snr, nBytes);
         pdr *= tempPdr>1?1:tempPdr;
-        m_perDetails.append (" &&_N+I: ");
-        m_perDetails.append (ToString(noiseInterferenceW));
-        m_perDetails.append (" csr: ");
-        m_perDetails.append (ToString (tempPdr));
-        m_perDetails.append (" snr: ");
-        m_perDetails.append (ToString (10*log10(snr)));
-        m_perDetails.append (" nBytes: ");
-        m_perDetails.append (ToString (nBytes));
-        m_perDetails.append (" current_pdr: ");
-        m_perDetails.append (ToString (pdr));
+#endif
+        //m_perDetails.append (" &&_N+I: ");
+        //m_perDetails.append (ToString(noiseInterferenceW));
+        //m_perDetails.append (" csr: ");
+        //m_perDetails.append (ToString (tempPdr));
+        //m_perDetails.append (" snr: ");
+        //m_perDetails.append (ToString (10*log10(snr)));
+        //m_perDetails.append (" nBytes: ");
+        //m_perDetails.append (ToString (nBytes));
+        //m_perDetails.append (" current_pdr: ");
+        //m_perDetails.append (ToString (pdr));
       }
     }
     // after calculating the current SINR duration, go to next
     noiseInterferenceW += it->GetDelta (); 
-    m_perDetails.append (" GetDelta (): ");
-    m_perDetails.append (ToString (it->GetDelta ()));
+    //m_perDetails.append (" GetDelta (): ");
+    //m_perDetails.append (ToString (it->GetDelta ()));
     previous = current;
   }
+  //std::cout<<Simulator::Now () << " pdr: "<<pdr << std::endl;
   return 1-pdr; // this is the PER
 }
 
@@ -665,9 +760,33 @@ double InterferenceHelper::ExpectedPdr(double snr, uint32_t length)
   }
   double B_N = 2000;
   double R=250*8;
-  snr = pow (10, snr/10);
+  //snr = pow (10, snr/10);
   double ber = 1 - m_mathHelper.NormCdf ( sqrt (snr * 2 * B_N/R));
   double pdr = pow ((1-ber), length);
+  return pdr > 1.0 ? 1 : pdr;
+}
+
+/* Add randomize channel effect after enlarge te operative range of snr-pdr curve
+ */
+double InterferenceHelper::ExpectedPdr(double powerW, double noiseW, double interferenceW, uint32_t length )
+{
+  if (length == 0)
+    return 1.0;
+  double B_N = 2000;
+  double R=250*8;
+  double snr = powerW/ (noiseW + interferenceW); 
+
+  double noiseDbm = 10*log10(noiseW) + 30;
+  double noiseVariationDb = m_whiteGaussianNoise.GetValue ();
+  //std::cout<<"noiseVariationDb: "<<noiseVariationDb<<std::endl;
+  noiseDbm = noiseDbm + noiseVariationDb; // add with variation
+  double powerDbm = 10*log10(powerW) + 30;
+  noiseW = pow (10, (noiseDbm-30)/10); //the noise power with randomize channel parameters.
+  double niDbm = 10*log10(noiseW + interferenceW) + 30;
+  snr = powerDbm - niDbm;
+  double ber = 1 - m_mathHelper.NormCdf ( sqrt (snr * 2 * B_N/R));
+  double pdr = pow ((1-ber), length);
+
   return pdr > 1.0 ? 1 : pdr;
 }
 

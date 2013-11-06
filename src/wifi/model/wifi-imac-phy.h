@@ -21,7 +21,6 @@
 #include "ns3/traced-value.h"
 #include "math-helper.h"
 #include "controller.h"
-#include "settings.h"
 
 namespace ns3 {
 
@@ -210,7 +209,7 @@ namespace ns3 {
       double GetCurrentInterferenceW () ;
       /* return the current noise power in watt
       */
-      double GetCurrentNoiseW () const;
+      double GetCurrentNoiseW () ;
       double GetCurrentReceivedPower () const;
 
       double GetTransmissionPowerDbm (double maxInterference);
@@ -339,7 +338,6 @@ namespace ns3 {
       double m_initialErEdgeInterferenceW;
       double m_rxPowerDbm;
       double m_snr;
-      NormalVariable m_whiteGaussianNoise;
   };
 
   bool operator != (const std::vector<SignalMap> &a, const std::vector<SignalMap> &b);

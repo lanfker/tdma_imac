@@ -31,13 +31,6 @@
 
 namespace ns3{
 
-const double DEFAULT_GENERATION_PROBABILITY = 0.6;
-const uint32_t DEFAULT_PACKET_SIZE = 100;
-const uint32_t LEARNING_PROCESS_PACKET_LENGTH = 8;
-const double NEIGHBOR_SELECTION_SNR_THRESHOLD = 8.9370;
-const uint32_t MAX_BEACON_TRIALS = 18;
-const uint32_t MAX_SETTING_DELAY = 2000;
-const uint32_t DEFAULT_WIFI_DEVICE_INDEX = 0;
 
 class ImacRandomTrafficGenerator: public Application
   {

@@ -5,7 +5,7 @@
 #define PRK_CONTROLLER_H 
 #include "ns3/object.h"
 #include "math-helper.h"
-#include "settings.h"
+#include "ns3/simulator.h"
 namespace ns3
 {
 class Controller : public Object
