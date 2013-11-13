@@ -559,7 +559,7 @@ namespace ns3 {
 
     m_csmaNodes.push_back (95); 
     m_csmaNodes.push_back (98); 
-    
+
     if (find (m_csmaNodes.begin (), m_csmaNodes.end (), m_self.GetNodeId ()) == m_csmaNodes.end ())
     {
       m_runPRKS = true;
@@ -853,11 +853,11 @@ namespace ns3 {
           it->nextSlotFromSelf = nextRxSlot;
         }
         /*
-        else if ( find (it->nextSlots.begin (),it->nextSlots.end (), nextRxSlot ) == it->nextSlots.end ())
-        {
-          it->nextSlots.push_back (nextRxSlot);
-        }
-        */
+           else if ( find (it->nextSlots.begin (),it->nextSlots.end (), nextRxSlot ) == it->nextSlots.end ())
+           {
+           it->nextSlots.push_back (nextRxSlot);
+           }
+           */
       }
     }
   }
@@ -931,6 +931,7 @@ namespace ns3 {
     // This is mainly for optimization. It can save us some simulation time.
     //--------------------------------------------------------------------------------------------------
     std::vector<TdmaLink> linkRelatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks; 
+    //std::cout<<" link_related_links: "<< linkRelatedLinks.size () << std::endl;
     if ( linkRelatedLinks.size () != 0)
     {
       TdmaLink maxLink = *(linkRelatedLinks.begin ());
@@ -1258,6 +1259,7 @@ namespace ns3 {
     TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
     if ( payload.ErRxFromSender == true && m_self.ToString () == linkInfo.receiverAddr)
     {
+      //std::cout<< m_self.GetNodeId ()<<" sender: "<< Mac48Address (linkInfo.senderAddr.c_str ()).GetNodeId () << " receiver: "<< Mac48Address (linkInfo.receiverAddr.c_str ()).GetNodeId () << " er_received from receiver " << std::endl;
       UpdateErRxStatus ( linkInfo.linkId, true);
     }
     if ( linkInfo.receiverAddr == m_self.ToString ())
@@ -1280,12 +1282,15 @@ namespace ns3 {
       }
       //UpdateNextRxSlot (it->linkId, it->nextSlot, false);// from receiver
     }
+    //std::cout<<" in Process control payload, _vec size: "<< payload.vec.size () << std::endl;
     for (std::vector<ErInfoItem>::iterator _it = payload.vec.begin (); _it != payload.vec.end (); ++ _it)
     {
 
+      //std::cout<<m_self.GetNodeId () << " sender: "<< (uint32_t)(_it->sender) <<" receiver: "<< (uint32_t)(_it->receiver) << std::endl;
       Mac48Address originalSender = Mac48Address ( IntToMacAddress (_it->receiver).c_str ());
       if ( originalSender == m_self) // if is an Info Item of my own when as receiver, @m_self always has the latest information
       {
+        //std::cout<<" loop continued" << std::endl;
         continue;
       }
       _it->itemId = (_it->sender * Simulator::NodesCountUpperBound + _it->receiver) * 10;
@@ -1300,14 +1305,14 @@ namespace ns3 {
       double erEdgeW = _it->edgeInterferenceW;
       for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
       {
-        if ( it->itemId == _it->itemId)
-        {
-          if ( it->edgeInterferenceW < _it->edgeInterferenceW)
-          {
-            erEdgeW = it->edgeInterferenceW;
-            break;
-          }
-        }
+      if ( it->itemId == _it->itemId)
+      {
+      if ( it->edgeInterferenceW < _it->edgeInterferenceW)
+      {
+      erEdgeW = it->edgeInterferenceW;
+      break;
+      }
+      }
       }
 
       std::vector<std::string> nodesInEr;
@@ -1318,37 +1323,37 @@ namespace ns3 {
       std::vector<std::string> nodesNeedCheck;
       for (std::vector<TdmaLink>::iterator iter = relatedLinks.begin (); iter != relatedLinks.end (); ++ iter)
       {
-        if ( iter->senderAddr != m_self.ToString ())
-        {
-          if (iter->senderAddr == hdr.GetAddr2 ().ToString ())
-          {
-            receiveOrNot = true;
-          }
-          nodesNeedCheck.push_back (iter->senderAddr);
-        }
-        else if ( iter->receiverAddr != m_self.ToString ())
-        {
-          if ( iter->receiverAddr == hdr.GetAddr2 ().ToString ())
-          {
-            receiveOrNot = true;
-          }
-          nodesNeedCheck.push_back (iter->receiverAddr);
-        }
+      if ( iter->senderAddr != m_self.ToString ())
+      {
+      if (iter->senderAddr == hdr.GetAddr2 ().ToString ())
+      {
+      receiveOrNot = true;
+      }
+      nodesNeedCheck.push_back (iter->senderAddr);
+      }
+      else if ( iter->receiverAddr != m_self.ToString ())
+      {
+      if ( iter->receiverAddr == hdr.GetAddr2 ().ToString ())
+      {
+      receiveOrNot = true;
+      }
+      nodesNeedCheck.push_back (iter->receiverAddr);
+      }
       }
       nodesNeedCheck.push_back (m_self.ToString ());
       for (std::vector<std::string>::iterator iter = nodesNeedCheck.begin (); iter != nodesNeedCheck.end () && receiveOrNot == false; ++ iter)
       {
-        if ( find (nodesInEr.begin (), nodesInEr.end (), *iter) != nodesInEr.end ())
-        {
-          receiveOrNot = true;
-          break;
-        }
+      if ( find (nodesInEr.begin (), nodesInEr.end (), *iter) != nodesInEr.end ())
+      {
+      receiveOrNot = true;
+      break;
+      }
       }
       if (receiveOrNot == true) 
       {
-        UpdateReceivedErInfoItem (*_it, hdr.GetAddr2 ());
+      UpdateReceivedErInfoItem (*_it, hdr.GetAddr2 ());
       }
-    */
+      */
     }
 
     if (payload.vec.size () != 0)
@@ -1470,11 +1475,11 @@ namespace ns3 {
 
         AckSequenceNoTag ackSequenceNoTag; 
         /*  //DISABLE ACK ER AND ACK PDR 
-        if (packet->FindFirstMatchingByteTag (ackSequenceNoTag) )
-        {
-          //for ack link, the sender is the receiver of the data link and the receiver is the sender of the data link
-          //so m_self as the sender of the data link should be the first parameter
-          UpdateReceivedAckPacketNumbers (m_self, ackSenderAddress, ackSequenceNoTag.Get ()); //?
+            if (packet->FindFirstMatchingByteTag (ackSequenceNoTag) )
+            {
+        //for ack link, the sender is the receiver of the data link and the receiver is the sender of the data link
+        //so m_self as the sender of the data link should be the first parameter
+        UpdateReceivedAckPacketNumbers (m_self, ackSenderAddress, ackSequenceNoTag.Get ()); //?
         }
         */
       }
@@ -1533,7 +1538,7 @@ namespace ns3 {
 #endif
         //for data, Addr2 is the data link sender, and addr1==@m_self is the data link receiver
         LinkEstimatorItem estimatorItem = GetEstimatorTableItemByNeighborAddr (hdr.GetAddr2 (), m_self);
-         //std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<     < hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_e     dge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNode     Id () << std::endl;
+        //std::cout<<"2: "<<Simulator::Now () <<" received data packet from: "<     < hdr.GetAddr2 ()<<" to: "<<m_self<<" seq: "<< hdr.GetSequenceNumber ()<<" er_e     dge: "<< estimatorItem.LastDataErEdgeInterferenceW<<" nodeid: "<<m_self.GetNode     Id () << std::endl;
 #if defined (SCREAM)
         if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
         {
@@ -1550,15 +1555,15 @@ namespace ns3 {
           packet->RemoveTrailer (fcs);
           //std::cout<<m_self.GetNodeId ()<< " push into queue, size: "<< packet->GetSize () << std::endl;
 #if defined (SCREAM)
-        if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
-        {
-          Ptr<Packet> s = packet->Copy (); 
-          if (IsDuplicatePacket  (s) != true)
+          if (Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0 )
           {
-            //std::cout<<" 1537: added here" << std::endl;
-            m_packetQueue.push_back (s);
+            Ptr<Packet> s = packet->Copy (); 
+            if (IsDuplicatePacket  (s) != true)
+            {
+              //std::cout<<" 1537: added here" << std::endl;
+              m_packetQueue.push_back (s);
+            }
           }
-        }
 #else
           Ptr<Packet> s = packet->Copy (); 
           if (IsDuplicatePacket  (s) != true)
@@ -1570,25 +1575,25 @@ namespace ns3 {
           //std::cout<<" original packet uid: "<< packet->GetUid () <<" copied packet uid: "<< s->GetUid () << std::endl;
         }
         /*
-        else
-        {
-          std::cout<<" queue_full."<<std::endl;
-        }
-        */
+           else
+           {
+           std::cout<<" queue_full."<<std::endl;
+           }
+           */
         /*
-        for (uint32_t i = 0; i < m_packetQueue.size (); ++ i)
-        {
-          if ( m_packetQueue[i] != NULL)
-          {
-            std::cout<<" index: "<<i<<" id: "<<m_packetQueue[i]->GetUid ();
-          }
-          else
-          {
-            std::cout<<" index: "<<i<<" id: NULL";
-          }
-        }
-        std::cout<<std::endl;
-        */
+           for (uint32_t i = 0; i < m_packetQueue.size (); ++ i)
+           {
+           if ( m_packetQueue[i] != NULL)
+           {
+           std::cout<<" index: "<<i<<" id: "<<m_packetQueue[i]->GetUid ();
+           }
+           else
+           {
+           std::cout<<" index: "<<i<<" id: NULL";
+           }
+           }
+           std::cout<<std::endl;
+           */
 #endif
         TdmaLink linkInfo = Simulator::m_nodeLinkDetails[hdr.GetAddr2 ().GetNodeId ()].selfInitiatedLink;
 #ifdef CSMA_PRKS_HYBRID
@@ -1604,6 +1609,10 @@ namespace ns3 {
           }
         }
 #else
+        if (Simulator::Now () > Simulator::LearningTimeDuration)
+        {
+          //std::cout<<Simulator::Now ()<< " sender: " << Mac48Address (linkInfo.senderAddr.c_str ()).GetNodeId ()<< " nodeid: "<< m_self.GetNodeId () << " er_rx_statux: "<< GetErRxStatus (linkInfo.linkId ) << std::endl;
+        }
         if ( GetErRxStatus (linkInfo.linkId ) ==  true)
         {
           UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
@@ -1942,7 +1951,7 @@ rxPacket:
     }
     if (Simulator::Now () <= Simulator::LearningTimeDuration )
     {
-        imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (uint8_t)0); 
+      imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (uint8_t)0); 
     }
     if (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL)
       //Please notice that when the condition (Simulator::Now () <= Simulator::LearningTimeDuration) is satisfied, we are using the  maximum transmission power. 
@@ -1970,7 +1979,8 @@ rxPacket:
         imacPhy->SendPacket (packet, txMode, WIFI_PREAMBLE_LONG, (double)tx_power); 
       }
     }
-    else if (Simulator::Now () > Simulator::LearningTimeDuration && m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == CONTROL_CHANNEL)
+    else if (Simulator::Now () > Simulator::LearningTimeDuration && 
+        m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == CONTROL_CHANNEL)
     {
 #ifdef POWER_CONTROL
       double txPower = NORMAL_TX_POWER;
@@ -1979,6 +1989,7 @@ rxPacket:
       if (nodesInEr.size () < Simulator::MinInformRange)
       {
         nodesInEr.clear ();
+        // List all nodes in minimum informing range.
         nodesInEr = Simulator::ListNodesInEr(m_self.ToString ());
       }
       for (std::vector<std::string>::iterator it = nodesInEr.begin (); it != nodesInEr.end (); ++ it)
@@ -2397,7 +2408,7 @@ rxPacket:
   }
 
   /* Source is the node who sends out the packet
-   */
+  */
   void MacLow::SendAckAfterData (Mac48Address source, Time duration, WifiMode dataTxMode, double dataSnr)
   {
     NS_LOG_FUNCTION (this);
@@ -2966,7 +2977,7 @@ rxPacket:
           if (estimatedPdr >= m_desiredDataPdr && payloadItem.risingAchieved == false)
           {
             payloadItem.risingAchieved = true;
-             //std::cout<<m_self<<" from: "<<sender<<" rising time achieved" << st     d::endl;
+            //std::cout<<m_self<<" from: "<<sender<<" rising time achieved" << st     d::endl;
             std::cout<<"6: "<<m_self.GetNodeId ()<<" "<<sender.GetNodeId ()<< std::endl; // rising time achieved
           }
           it->ReceivedDataPacketNumbers.clear ();
@@ -3300,57 +3311,60 @@ rxPacket:
         }
 
         //NEW ER estimation, judge according to verison number
-        if (it->updateSeqNo < erItem.updateSeqNo || difference > IMPOSSIBLE_VER_NO_DIFFERENCE)
-        {
-          if (m_self.GetNodeId () == it->sender)// received a new ER edge information item
+        if (m_self.GetNodeId () == (uint16_t)(it->sender) )
+          //std::cout<<m_self.GetNodeId ()<<" version number: "<< " local: "<< (uint32_t)(it->updateSeqNo) <<" received: "<< (uint32_t)(erItem.updateSeqNo) << std::endl;
+          if (it->updateSeqNo < erItem.updateSeqNo || difference > IMPOSSIBLE_VER_NO_DIFFERENCE)
           {
-            m_newErEdgeReceivedFromReceiver = 1;
-          }
-          //--------------------------------------------------------------------------------
-          //              UPDATE INFO ITEM FIELDS
-          //--------------------------------------------------------------------------------
-          it->edgeInterferenceW = erItem.edgeInterferenceW;
-          it->updateSeqNo = erItem.updateSeqNo;
-          if (controlPacketSender.GetNodeId () == erItem.sender || controlPacketSender.GetNodeId () == erItem.receiver) // is sent by the original sender, is not relayed. Re-set priority?
-          {
-            it->itemPriority= erItem.itemPriority == 0 ? erItem.itemPriority : erItem.itemPriority - 1;
-          }
-          else if (controlPacketSender.GetNodeId () != erItem.sender && controlPacketSender.GetNodeId () != erItem.receiver )// relayed information
-          {
-            if (it->itemPriority <= erItem.itemPriority)
+            if (m_self.GetNodeId () == it->sender)// received a new ER edge information item
             {
-              it->itemPriority = it->itemPriority == 0 ? it->itemPriority : it->itemPriority - 1;
+              //std::cout<<m_self.GetNodeId ()<< " new_er_received from receiver: "<< (uint32_t)(it->receiver)<< std::endl;
+              m_newErEdgeReceivedFromReceiver = 1;
             }
-            else if ( it->itemPriority > erItem.itemPriority)
+            //--------------------------------------------------------------------------------
+            //              UPDATE INFO ITEM FIELDS
+            //--------------------------------------------------------------------------------
+            it->edgeInterferenceW = erItem.edgeInterferenceW;
+            it->updateSeqNo = erItem.updateSeqNo;
+            if (controlPacketSender.GetNodeId () == erItem.sender || controlPacketSender.GetNodeId () == erItem.receiver) // is sent by the original sender, is not relayed. Re-set priority?
             {
-              it->itemPriority = erItem.itemPriority == 0 ? erItem.itemPriority : erItem.itemPriority - 1;
+              it->itemPriority= erItem.itemPriority == 0 ? erItem.itemPriority : erItem.itemPriority - 1;
             }
-          }
-
-
-          ErInfoItem tempItem;
-          CopyErInfoItem (it, &tempItem);
-          m_othersControlInformation.erase (it);
-          if ( m_othersControlInformation.size () == 0)
-          {
-            m_othersControlInformation.push_back (tempItem);
-          }
-          else if ( (m_othersControlInformation.end () -1)->itemPriority > tempItem.itemPriority )
-          {
-            m_othersControlInformation.push_back (tempItem);
-          }
-          else
-          {
-            for (std::vector<ErInfoItem>::iterator sub_it = m_othersControlInformation.begin (); sub_it != m_othersControlInformation.end (); ++ sub_it)
+            else if (controlPacketSender.GetNodeId () != erItem.sender && controlPacketSender.GetNodeId () != erItem.receiver )// relayed information
             {
-              if (sub_it->itemPriority <= tempItem.itemPriority)
+              if (it->itemPriority <= erItem.itemPriority)
               {
-                m_othersControlInformation.insert (sub_it, tempItem);
-                break;
+                it->itemPriority = it->itemPriority == 0 ? it->itemPriority : it->itemPriority - 1;
+              }
+              else if ( it->itemPriority > erItem.itemPriority)
+              {
+                it->itemPriority = erItem.itemPriority == 0 ? erItem.itemPriority : erItem.itemPriority - 1;
+              }
+            }
+
+
+            ErInfoItem tempItem;
+            CopyErInfoItem (it, &tempItem);
+            m_othersControlInformation.erase (it);
+            if ( m_othersControlInformation.size () == 0)
+            {
+              m_othersControlInformation.push_back (tempItem);
+            }
+            else if ( (m_othersControlInformation.end () -1)->itemPriority > tempItem.itemPriority )
+            {
+              m_othersControlInformation.push_back (tempItem);
+            }
+            else
+            {
+              for (std::vector<ErInfoItem>::iterator sub_it = m_othersControlInformation.begin (); sub_it != m_othersControlInformation.end (); ++ sub_it)
+              {
+                if (sub_it->itemPriority <= tempItem.itemPriority)
+                {
+                  m_othersControlInformation.insert (sub_it, tempItem);
+                  break;
+                }
               }
             }
           }
-        }
         return;
       }
     }
@@ -3448,12 +3462,12 @@ rxPacket:
         itemsSentInOthers.push_back (temp); // record the item that will be sent
         if (temp.itemPriority != 0)
         {
-          temp.itemPriority  -= 1;
+        temp.itemPriority  -= 1;
         }
         ErInfoItem tempItem = *othersIter;
-        *othersIter = m_othersControlInformation[itemSentCountInOthers];
-        m_othersControlInformation[itemSentCountInOthers] = tempItem; //move the sent item to the front of the vector, later, we calculate their position in the vector to realize the round-robin mechanism
-        itemSentCountInOthers += 1;
+         *othersIter = m_othersControlInformation[itemSentCountInOthers];
+         m_othersControlInformation[itemSentCountInOthers] = tempItem; //move the sent item to the front of the vector, later, we calculate their position in the vector to realize the round-robin mechanism
+         itemSentCountInOthers += 1;
         //______________________________________________________________________________________________________________
         */
 
@@ -3497,11 +3511,11 @@ rxPacket:
               temp.itemPriority  -= 1;
             }
             /*
-            ErInfoItem tempItem = *othersIter;
-            *othersIter = m_othersControlInformation[itemSentCountInOthers];
-            m_othersControlInformation[itemSentCountInOthers] = tempItem; //move the sent item to the front of the vector, later, we calculate their position in the vector to realize the round-robin mechanism
-            itemSentCountInOthers += 1;
-            */
+               ErInfoItem tempItem = *othersIter;
+             *othersIter = m_othersControlInformation[itemSentCountInOthers];
+             m_othersControlInformation[itemSentCountInOthers] = tempItem; //move the sent item to the front of the vector, later, we calculate their position in the vector to realize the round-robin mechanism
+             itemSentCountInOthers += 1;
+             */
             break;
           }
         }
@@ -3543,11 +3557,11 @@ rxPacket:
       // find the sent item one by one, delete them from the original vector,
       for (std::vector<ErInfoItem>::iterator sub_it = m_othersControlInformation.begin (); sub_it != m_othersControlInformation.end (); ++ sub_it)
       {
-        if ( sub_it->itemId == it->itemId)
-        {
-          m_othersControlInformation.erase (sub_it);
-          break;
-        }
+      if ( sub_it->itemId == it->itemId)
+      {
+      m_othersControlInformation.erase (sub_it);
+      break;
+      }
       }
       */
       // insert the sent items in the right place
@@ -3604,6 +3618,10 @@ rxPacket:
       //Sender Id
       *(ptr++) = (it->sender & 0xff); //the lower 8-bit of the sender. 1 byte finishes
       *(ptr) = ((it->sender >> 8) & 0x01); // the higher 1-bit of the sender
+      if (it->receiver == m_self.GetNodeId () )
+      {
+        //std::cout<<m_self.GetNodeId ()<< " sender: "<< (uint32_t)(it->sender) <<" receiver: "<< (uint32_t)(it->receiver) <<std::endl;
+      }
       // Version number
       *(ptr++) |= ((it->updateSeqNo) << 1); // 7 bits
       //Item priority
@@ -3646,6 +3664,7 @@ rxPacket:
     payload [max_size * item_size + 2] = ((controlChannelInterferenceDbm >> 4) & 0xff);
     payload [max_size * item_size + 3] = (m_nextSendingSlot - m_currentTimeslot) & 0xff;
     payload [max_size * item_size + 4] = ((m_nextSendingSlot - m_currentTimeslot) >> 8) & 0xff;
+    //std::cout<<m_self.GetNodeId () <<" sender side er_rx_status: "<< m_newErEdgeReceivedFromReceiver << std::endl;
     if (m_newErEdgeReceivedFromReceiver >= 1)
     {
       payload [max_size * item_size + 5] = 1;
@@ -3760,11 +3779,11 @@ rxPacket:
     hdr.SetNoRetry ();
     //std::cout<<"self: "<<m_self.GetNodeId () <<" receiver: "<< m_dataReceiverAddr.GetNodeId () << std::endl;
     /*
-    if (pkt != NULL)
-    {
-      pkt->PeekHeader (hdr);
-    }
-    */
+       if (pkt != NULL)
+       {
+       pkt->PeekHeader (hdr);
+       }
+       */
     hdr.SetAddr2 (m_self);
     hdr.SetAddr1 (m_dataReceiverAddr);
     //WifiMacTrailer fcs;
@@ -3781,10 +3800,10 @@ rxPacket:
     m_txParams = params;
     m_sendingCount ++;
     /*
-    std::cout<<m_self.GetNodeId ()<<" m_retransmissionTimes: "<< m_retransmissionTimes << std::endl;
-    std::cout<<m_self.GetNodeId ()<<"  generate: before send, packet size: "<< pkt->GetSize () << std::endl;
-    std::cout<<m_self.GetNodeId ()<<"  generate: before send, header size: "<< hdr.GetSize () << std::endl;
-    */
+       std::cout<<m_self.GetNodeId ()<<" m_retransmissionTimes: "<< m_retransmissionTimes << std::endl;
+       std::cout<<m_self.GetNodeId ()<<"  generate: before send, packet size: "<< pkt->GetSize () << std::endl;
+       std::cout<<m_self.GetNodeId ()<<"  generate: before send, header size: "<< hdr.GetSize () << std::endl;
+       */
     m_setPacketCallback (hdr, pkt);
     //std::cout<<" m_retransmissionTimes: "<< m_retransmissionTimes << std::endl;
     SendDataPacket ();
@@ -4211,10 +4230,10 @@ rxPacket:
       m_packetQueue.push_back (pkt);
     }
     /*
-    else {
-      std::cout<<" queue_full."<<std::endl;
-    }
-    */
+       else {
+       std::cout<<" queue_full."<<std::endl;
+       }
+       */
     if (Simulator::Now () > Simulator::SimulationStopTime)
     {
       return;
@@ -4307,7 +4326,7 @@ rxPacket:
     for (std::vector<TdmaLink>::iterator it = selfRelatedLinks.begin (); it != selfRelatedLinks.end (); ++ it)
     {
       if ( it->senderAddr == m_self.ToString ()) 
-      // here we are considering @m_self as a receiver, so we ignore the situation when it is a sender.
+        // here we are considering @m_self as a receiver, so we ignore the situation when it is a sender.
       {
         continue;
       }
@@ -4355,364 +4374,364 @@ rxPacket:
         {
           selfMax = false;
           break;
-            //maxPriority = DoCalculatePriority (*it, slot);
-            //maxPriorityLinkId = *it;
-          }
-        }
-        //if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
-        if (selfMax == true && slot != m_currentTimeslot) 
-        {
-          return slot;
+          //maxPriority = DoCalculatePriority (*it, slot);
+          //maxPriorityLinkId = *it;
         }
       }
-      return m_currentTimeslot;
+      //if (maxPriorityLinkId == linkInfo.linkId ) // target link has the largest link priority
+      if (selfMax == true && slot != m_currentTimeslot) 
+      {
+        return slot;
+      }
     }
+    return m_currentTimeslot;
+  }
 
 #if defined (SCREAM)
-    void MacLow::CalcScreamSchedule ()
+  void MacLow::CalcScreamSchedule ()
+  {
+    // let every link have time to send MAX_TRY_TIMES of packets before draw conclusions 
+    if (Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0 && Simulator::Now () > Simulator::LearningTimeDuration) //schedule finished
     {
-      // let every link have time to send MAX_TRY_TIMES of packets before draw conclusions 
-      if (Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0 && Simulator::Now () > Simulator::LearningTimeDuration) //schedule finished
+      return;
+    }
+    if ( Simulator::CurrentTryTimes != MAX_TRY_TIMES )
+    {
+      Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
+      return;
+    }
+    else // time to calculate if schedule is feasible;
+    {
+      for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it)
       {
-        return;
-      }
-      if ( Simulator::CurrentTryTimes != MAX_TRY_TIMES )
-      {
-        Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
-        return;
-      }
-      else // time to calculate if schedule is feasible;
-      {
-        for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it)
+        if ( it->receive_count / it->send_count < 1)
         {
-          if ( it->receive_count / it->send_count < 1)
-          {
-            Simulator::RegisterScreamPremitive (true);
-            break;
-          }
-        }
-        Simulator::m_screamStatistics.clear ();
-        Simulator::CurrentTryTimes = 0;
-        Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
-      }
-      // schedule fails
-      if ( Simulator::CheckScreamPremitive () == true && Simulator::m_sendingLinks.size () > 1)
-      {
-        Simulator::m_sendingLinks.pop_back ();
-      }
-      // schedule succeeded
-      else if (Simulator::m_sendingLinks.size () > 1)
-      {
-        Simulator::RegisterFeasibleLink (Simulator::m_sendingLinks.back ());
-      }
-      // try another schedule
-      Simulator::RegisterScreamPremitive (false);
-      // decide control link and control node
-
-      int16_t i = Simulator::m_controlNodeId + 1;
-      if (m_consideredNodeId == NETWORK_SIZE)
-      {
-        m_consideredNodeId = 0;
-        InitiateRemainNodes ();
-        //m_remainNodes.clear ();
-      }
-      for (; i <= NETWORK_SIZE && m_consideredNodeId == 0; ++ i) //node id
-      {
-        
-        TdmaLink linkInfo = Simulator::FindLinkBySender (IntToMacAddress (i));
-        if (linkInfo.linkId == 0)
-        {
-          continue;
-        }
-        if (Simulator::CheckLinkScheduledAsControlLink (linkInfo.linkId) == false )
-        {
-          // select node @i as  control node
-          FeasibleSchedule feasibleSchedule;
-          feasibleSchedule.controlLink = linkInfo.linkId;
-          Simulator::m_sendingLinks.clear ();
-          Simulator::m_sendingLinks.push_back (linkInfo.linkId);
-          Simulator::RegisterNewFeasibleSchedule (feasibleSchedule);
-          Simulator::m_controlNodeId = i;
-          Simulator::m_controlLink = linkInfo.linkId;
-          break;
-        }
-        if (i >= NETWORK_SIZE)
-        {
-          Simulator::m_controlNodeId = NETWORK_SIZE;
-        }
-      }
-
-      // decide which link to add 
-      while (m_remainNodes.size () != 0)
-      {
-        //m_remainNodes
-        uint16_t pos = (uint16_t)(rand () % m_remainNodes.size ()) + 1;
-        uint16_t random_id  =  GetFromPosition (pos);
-        m_consideredNodeId = NETWORK_SIZE - m_remainNodes.size ();
-        //m_remainNodes.push_back (random_id);
-        TdmaLink linkInfo = Simulator::FindLinkBySender (IntToMacAddress (random_id));
-        if (linkInfo.linkId != 0 && linkInfo.linkId != Simulator::m_controlLink)
-        {
-          Simulator::m_sendingLinks.push_back (linkInfo.linkId);
-          m_consideredNodeId = NETWORK_SIZE - m_remainNodes.size ();
+          Simulator::RegisterScreamPremitive (true);
           break;
         }
       }
+      Simulator::m_screamStatistics.clear ();
+      Simulator::CurrentTryTimes = 0;
+      Simulator::Schedule (m_timeslot, &MacLow::CalcScreamSchedule, this);
+    }
+    // schedule fails
+    if ( Simulator::CheckScreamPremitive () == true && Simulator::m_sendingLinks.size () > 1)
+    {
+      Simulator::m_sendingLinks.pop_back ();
+    }
+    // schedule succeeded
+    else if (Simulator::m_sendingLinks.size () > 1)
+    {
+      Simulator::RegisterFeasibleLink (Simulator::m_sendingLinks.back ());
+    }
+    // try another schedule
+    Simulator::RegisterScreamPremitive (false);
+    // decide control link and control node
 
-      /*
-      for (int16_t j = m_consideredNodeId + 1; j <= NETWORK_SIZE; ++ j)
+    int16_t i = Simulator::m_controlNodeId + 1;
+    if (m_consideredNodeId == NETWORK_SIZE)
+    {
+      m_consideredNodeId = 0;
+      InitiateRemainNodes ();
+      //m_remainNodes.clear ();
+    }
+    for (; i <= NETWORK_SIZE && m_consideredNodeId == 0; ++ i) //node id
+    {
+
+      TdmaLink linkInfo = Simulator::FindLinkBySender (IntToMacAddress (i));
+      if (linkInfo.linkId == 0)
       {
-        if ( j != 0 && j != Simulator::m_controlNodeId)
-        {
-          TdmaLink linkInfo = Simulator::FindLinkBySender (IntToMacAddress (j));
-          if (linkInfo.linkId != 0)
-          {
-            Simulator::m_sendingLinks.push_back (linkInfo.linkId);
-            m_consideredNodeId = j;
-            break;
-          }
-        }
-
+        continue;
       }
-
-      std::cout<<" sending links: ";
-      for (std::vector<int64_t>::iterator it = Simulator::m_sendingLinks.begin (); it != Simulator::m_sendingLinks.end (); ++ it)
+      if (Simulator::CheckLinkScheduledAsControlLink (linkInfo.linkId) == false )
       {
-        std::cout<<*it<<" ";
+        // select node @i as  control node
+        FeasibleSchedule feasibleSchedule;
+        feasibleSchedule.controlLink = linkInfo.linkId;
+        Simulator::m_sendingLinks.clear ();
+        Simulator::m_sendingLinks.push_back (linkInfo.linkId);
+        Simulator::RegisterNewFeasibleSchedule (feasibleSchedule);
+        Simulator::m_controlNodeId = i;
+        Simulator::m_controlLink = linkInfo.linkId;
+        break;
       }
-      */
-      //std::cout<<" controlnode: "<< Simulator::m_controlNodeId<<std::endl;
-
-      if (m_consideredNodeId >= NETWORK_SIZE - 1 && Simulator::m_controlNodeId == NETWORK_SIZE)
+      if (i >= NETWORK_SIZE)
       {
-        Simulator::m_controlNodeId = 0;
-        Simulator::m_controlLink = 0;
-        //Simulator::PrintScreamSchedules ();
-        //std::cout<<" control_node: "<<Simulator::m_controlNodeId<<" control_link: "<< Simulator::m_controlLink << std::endl;
-        return;
+        Simulator::m_controlNodeId = NETWORK_SIZE;
       }
     }
+
+    // decide which link to add 
+    while (m_remainNodes.size () != 0)
+    {
+      //m_remainNodes
+      uint16_t pos = (uint16_t)(rand () % m_remainNodes.size ()) + 1;
+      uint16_t random_id  =  GetFromPosition (pos);
+      m_consideredNodeId = NETWORK_SIZE - m_remainNodes.size ();
+      //m_remainNodes.push_back (random_id);
+      TdmaLink linkInfo = Simulator::FindLinkBySender (IntToMacAddress (random_id));
+      if (linkInfo.linkId != 0 && linkInfo.linkId != Simulator::m_controlLink)
+      {
+        Simulator::m_sendingLinks.push_back (linkInfo.linkId);
+        m_consideredNodeId = NETWORK_SIZE - m_remainNodes.size ();
+        break;
+      }
+    }
+
+    /*
+       for (int16_t j = m_consideredNodeId + 1; j <= NETWORK_SIZE; ++ j)
+       {
+       if ( j != 0 && j != Simulator::m_controlNodeId)
+       {
+       TdmaLink linkInfo = Simulator::FindLinkBySender (IntToMacAddress (j));
+       if (linkInfo.linkId != 0)
+       {
+       Simulator::m_sendingLinks.push_back (linkInfo.linkId);
+       m_consideredNodeId = j;
+       break;
+       }
+       }
+
+       }
+
+       std::cout<<" sending links: ";
+       for (std::vector<int64_t>::iterator it = Simulator::m_sendingLinks.begin (); it != Simulator::m_sendingLinks.end (); ++ it)
+       {
+       std::cout<<*it<<" ";
+       }
+       */
+    //std::cout<<" controlnode: "<< Simulator::m_controlNodeId<<std::endl;
+
+    if (m_consideredNodeId >= NETWORK_SIZE - 1 && Simulator::m_controlNodeId == NETWORK_SIZE)
+    {
+      Simulator::m_controlNodeId = 0;
+      Simulator::m_controlLink = 0;
+      //Simulator::PrintScreamSchedules ();
+      //std::cout<<" control_node: "<<Simulator::m_controlNodeId<<" control_link: "<< Simulator::m_controlLink << std::endl;
+      return;
+    }
+  }
 #endif
 
 #if defined (SCREAM)
-    void MacLow::CheckAndSendProbeMsg ()
+  void MacLow::CheckAndSendProbeMsg ()
+  {
+    TdmaLink linkInfo = Simulator::FindLinkBySender (m_self.ToString ());
+    //FeasibleSchedule schedule = Simulator::GetScheduleByControlLink (Simulator::m_controlLink);
+    //if current link is in current trying schedule, send packets
+    if ( find (Simulator::m_sendingLinks.begin (), Simulator::m_sendingLinks.end (), linkInfo.linkId) != Simulator::m_sendingLinks.end ())
     {
-      TdmaLink linkInfo = Simulator::FindLinkBySender (m_self.ToString ());
-      //FeasibleSchedule schedule = Simulator::GetScheduleByControlLink (Simulator::m_controlLink);
-      //if current link is in current trying schedule, send packets
-      if ( find (Simulator::m_sendingLinks.begin (), Simulator::m_sendingLinks.end (), linkInfo.linkId) != Simulator::m_sendingLinks.end ())
+      TrySendProbePacket ();
+    }
+    // here should update current_try_times
+    if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 )
+    {
+      Simulator::Schedule (m_timeslot, &MacLow::CheckAndSendProbeMsg, this);
+    }
+    else
+    {
+      Simulator::Schedule (m_timeslot, &MacLow::ScreamNormalDataTransmission, this);
+    }
+  }
+#endif
+
+#if defined (SCREAM)
+  void MacLow::TrySendProbePacket ()
+  {
+    NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
+    //After scream schedule calculationg is finished, we consider traffic pattern.
+    Ptr<Packet> pkt = NULL;
+    if (Simulator::Now () > Simulator::LearningTimeDuration && Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0)
+    {
+      if ( m_packetQueue.size () > 0 ) 
       {
-        TrySendProbePacket ();
-      }
-      // here should update current_try_times
-      if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 )
-      {
-        Simulator::Schedule (m_timeslot, &MacLow::CheckAndSendProbeMsg, this);
+        pkt = m_packetQueue.front ();
       }
       else
       {
-        Simulator::Schedule (m_timeslot, &MacLow::ScreamNormalDataTransmission, this);
+        return;
       }
     }
-#endif
+    m_setLisenterCallback ();
 
-#if defined (SCREAM)
-    void MacLow::TrySendProbePacket ()
+
+    if (pkt == NULL)
     {
-      NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == DATA_CHANNEL);
-      //After scream schedule calculationg is finished, we consider traffic pattern.
-      Ptr<Packet> pkt = NULL;
-      if (Simulator::Now () > Simulator::LearningTimeDuration && Simulator::m_controlNodeId == 0 && Simulator::m_controlLink == 0)
+      pkt = Create<Packet> (DATA_PACKET_PAYLOAD_LENGTH); // packet size get from scratch/imac.cc
+      //pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
+      if ( Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0)
       {
-        if ( m_packetQueue.size () > 0 ) 
-        {
-          pkt = m_packetQueue.front ();
-        }
-        else
-        {
-          return;
-        }
-      }
-      m_setLisenterCallback ();
-
-
-      if (pkt == NULL)
-      {
-        pkt = Create<Packet> (DATA_PACKET_PAYLOAD_LENGTH); // packet size get from scratch/imac.cc
-        //pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
-        if ( Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0)
-        {
-          m_packetQueue.front () = pkt;
+        m_packetQueue.front () = pkt;
 #ifdef RETRANSMISSION_DISABLE  // does not need packet re-transmission
-          m_packetQueue.erase (m_packetQueue.begin ()); 
+        m_packetQueue.erase (m_packetQueue.begin ()); 
 #endif
-        }
-        //std::cout<<" assign value to the first element of queue vector. "<< std::endl;
       }
-
-      if (pkt != NULL && m_retransmissionTimes != 0 && Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0) // if this transmission is actually for retransmission, we need to remove header and trailer since pkt is a pointer. In previous transmission, we have added header and trailer for this packet. If we do not remove header and trailer, we will end up with increasing packet size
-      {
-        WifiMacHeader _hdr; 
-        pkt->RemoveHeader (_hdr);
-        WifiMacTrailer _fcs;
-        pkt->RemoveTrailer (_fcs);
-      }
-      //uint8_t payload[DATA_PACKET_PAYLOAD_LENGTH];
-      //GenerateControlPayload (MAX_INFO_ITEM_SIZE_IN_DATA_PACKET, ER_INFO_ITEM_SIZE, payload);
-
-      //Ptr<Packet> pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
-      WifiMacHeader hdr;
-      hdr.SetAddr2 (m_self);
-      TdmaLink linkInfo = Simulator::FindLinkBySender (m_self.ToString ());
-      m_dataReceiverAddr = Mac48Address (linkInfo.receiverAddr.c_str ());
-      NS_ASSERT (!m_dataReceiverAddr.IsGroup ());
-      hdr.SetAddr1 (m_dataReceiverAddr);
-      hdr.SetDsNotTo ();
-      hdr.SetDsNotFrom ();
-      hdr.SetFragmentNumber (0);
-      hdr.SetNoRetry ();
-
-      hdr.SetTypeData ();
-      MacLowTransmissionParameters params;
-      params.EnableAck ();
-      params.DisableRts ();
-      params.DisableOverrideDurationId ();
-      params.DisableNextData ();
-      m_currentPacket = pkt;
-      m_currentHdr = hdr;
-      /*
-      std::cout<<m_self.GetNodeId ()<<" m_retransmissionTimes: "<< m_retransmissionTimes << std::endl;
-      std::cout<<m_self.GetNodeId ()<<" 4537 generate: before send, packet size: "<< pkt->GetSize () << std::endl;
-      std::cout<<m_self.GetNodeId ()<<" 4538 generate: before send, header size: "<< hdr.GetSize () << std::endl;
-      */
-      m_setPacketCallback (hdr, pkt);
-      m_txParams = params;
-      //m_sendingCount ++;
-      NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->IsStateIdle () == true);
-      SendDataPacket ();
-
-
-      if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 )
-      {
-        bool found = false;
-        for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it)
-        {
-          if (it->sender == m_self.ToString () && it->receiver == m_dataReceiverAddr.ToString ())
-          {
-            it->send_count += 1;
-            Simulator::CurrentTryTimes = (uint32_t)it->send_count; 
-            found = true;
-            break;
-          }
-        }
-        if (found == false) 
-        {
-          ScreamStatisticsItem screamItem;
-          screamItem.sender = m_self.ToString ();
-          screamItem.receiver = m_dataReceiverAddr.ToString ();
-          screamItem.send_count = 1;
-          Simulator::CurrentTryTimes = (uint32_t)screamItem.send_count;
-          screamItem.receive_count = 0;
-          Simulator::m_screamStatistics.push_back (screamItem);
-        }
-      }
+      //std::cout<<" assign value to the first element of queue vector. "<< std::endl;
     }
-#endif
 
-#if defined (SCREAM)
-    void MacLow::ScreamNormalDataTransmission ()
+    if (pkt != NULL && m_retransmissionTimes != 0 && Simulator::m_controlLink == 0 && Simulator::m_controlNodeId == 0) // if this transmission is actually for retransmission, we need to remove header and trailer since pkt is a pointer. In previous transmission, we have added header and trailer for this packet. If we do not remove header and trailer, we will end up with increasing packet size
     {
-      int64_t maxLinkId = 0;
-      int64_t maxLinkPriority = 0;
-      int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
-      for (int16_t nodeId = 1; nodeId <= NETWORK_SIZE; ++ nodeId)
-      {
-        TdmaLink linkInfo = Simulator::m_nodeLinkDetails[nodeId].selfInitiatedLink;
-        if (linkInfo.linkId != 0)
-        {
-          if ( DoCalculatePriority (linkInfo.linkId, currentSlot) > maxLinkPriority)
-          {
-            maxLinkPriority = DoCalculatePriority (linkInfo.linkId, currentSlot);
-            maxLinkId = linkInfo.linkId;
-          }
-        }
-      }
-      FeasibleSchedule schedule = Simulator::GetScheduleByControlLink (maxLinkId);
-      TdmaLink selfInfo = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].selfInitiatedLink;
-      if (selfInfo.linkId != 0)
-      {
-        if (selfInfo.linkId == maxLinkId || find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), selfInfo.linkId ) != schedule.feasibleLinks.end ())
-        {
-          TrySendProbePacket ();
-        }
-      }
+      WifiMacHeader _hdr; 
+      pkt->RemoveHeader (_hdr);
+      WifiMacTrailer _fcs;
+      pkt->RemoveTrailer (_fcs);
+    }
+    //uint8_t payload[DATA_PACKET_PAYLOAD_LENGTH];
+    //GenerateControlPayload (MAX_INFO_ITEM_SIZE_IN_DATA_PACKET, ER_INFO_ITEM_SIZE, payload);
 
-      if ( Simulator::Now () <= Simulator::SimulationStopTime )
+    //Ptr<Packet> pkt = Create<Packet> (payload, DATA_PACKET_PAYLOAD_LENGTH);
+    WifiMacHeader hdr;
+    hdr.SetAddr2 (m_self);
+    TdmaLink linkInfo = Simulator::FindLinkBySender (m_self.ToString ());
+    m_dataReceiverAddr = Mac48Address (linkInfo.receiverAddr.c_str ());
+    NS_ASSERT (!m_dataReceiverAddr.IsGroup ());
+    hdr.SetAddr1 (m_dataReceiverAddr);
+    hdr.SetDsNotTo ();
+    hdr.SetDsNotFrom ();
+    hdr.SetFragmentNumber (0);
+    hdr.SetNoRetry ();
+
+    hdr.SetTypeData ();
+    MacLowTransmissionParameters params;
+    params.EnableAck ();
+    params.DisableRts ();
+    params.DisableOverrideDurationId ();
+    params.DisableNextData ();
+    m_currentPacket = pkt;
+    m_currentHdr = hdr;
+    /*
+       std::cout<<m_self.GetNodeId ()<<" m_retransmissionTimes: "<< m_retransmissionTimes << std::endl;
+       std::cout<<m_self.GetNodeId ()<<" 4537 generate: before send, packet size: "<< pkt->GetSize () << std::endl;
+       std::cout<<m_self.GetNodeId ()<<" 4538 generate: before send, header size: "<< hdr.GetSize () << std::endl;
+       */
+    m_setPacketCallback (hdr, pkt);
+    m_txParams = params;
+    //m_sendingCount ++;
+    NS_ASSERT (m_phy->GetObject<WifiImacPhy> ()->IsStateIdle () == true);
+    SendDataPacket ();
+
+
+    if (Simulator::m_controlLink != 0 && Simulator::m_controlNodeId != 0 )
+    {
+      bool found = false;
+      for (std::vector<ScreamStatisticsItem>::iterator it = Simulator::m_screamStatistics.begin (); it != Simulator::m_screamStatistics.end (); ++ it)
       {
-        Simulator::Schedule (m_timeslot, &MacLow::ScreamNormalDataTransmission, this);
+        if (it->sender == m_self.ToString () && it->receiver == m_dataReceiverAddr.ToString ())
+        {
+          it->send_count += 1;
+          Simulator::CurrentTryTimes = (uint32_t)it->send_count; 
+          found = true;
+          break;
+        }
+      }
+      if (found == false) 
+      {
+        ScreamStatisticsItem screamItem;
+        screamItem.sender = m_self.ToString ();
+        screamItem.receiver = m_dataReceiverAddr.ToString ();
+        screamItem.send_count = 1;
+        Simulator::CurrentTryTimes = (uint32_t)screamItem.send_count;
+        screamItem.receive_count = 0;
+        Simulator::m_screamStatistics.push_back (screamItem);
       }
     }
+  }
 #endif
 
 #if defined (SCREAM)
-    void MacLow::InitiateRemainNodes ()
+  void MacLow::ScreamNormalDataTransmission ()
+  {
+    int64_t maxLinkId = 0;
+    int64_t maxLinkPriority = 0;
+    int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
+    for (int16_t nodeId = 1; nodeId <= NETWORK_SIZE; ++ nodeId)
     {
-      for (uint16_t i = 1; i <= NETWORK_SIZE; ++ i)
+      TdmaLink linkInfo = Simulator::m_nodeLinkDetails[nodeId].selfInitiatedLink;
+      if (linkInfo.linkId != 0)
       {
-        m_remainNodes.push_back (i);
+        if ( DoCalculatePriority (linkInfo.linkId, currentSlot) > maxLinkPriority)
+        {
+          maxLinkPriority = DoCalculatePriority (linkInfo.linkId, currentSlot);
+          maxLinkId = linkInfo.linkId;
+        }
       }
     }
-#endif
-#if defined (SCREAM)
-    uint16_t MacLow::GetFromPosition (uint16_t pos)
+    FeasibleSchedule schedule = Simulator::GetScheduleByControlLink (maxLinkId);
+    TdmaLink selfInfo = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].selfInitiatedLink;
+    if (selfInfo.linkId != 0)
     {
-      std::vector<uint16_t>::iterator it = m_remainNodes.begin ();
-      uint16_t node_id = *(it + pos - 1);
-      m_remainNodes.erase (it + pos - 1);
-      return node_id;
-    }
-#endif
-    void MacLow::SetPdrRequirement70 ()
-    {
-      m_desiredDataPdr = 0.7;
-    }
-    void MacLow::SetPdrRequirement80 ()
-    {
-      m_desiredDataPdr = 0.8;
-    }
-    void MacLow::SetPdrRequirement90 ()
-    {
-      m_desiredDataPdr = 0.9;
-    }
-    void MacLow::SetPdrRequirement95 ()
-    {
-      m_desiredDataPdr = 0.95;
+      if (selfInfo.linkId == maxLinkId || find (schedule.feasibleLinks.begin (), schedule.feasibleLinks.end (), selfInfo.linkId ) != schedule.feasibleLinks.end ())
+      {
+        TrySendProbePacket ();
+      }
     }
 
-    void MacLow::IncrementReTransmissionTimes ()
+    if ( Simulator::Now () <= Simulator::SimulationStopTime )
     {
-      if (m_retransmissionTimes <= RETRANSMISSION_TIMES)
+      Simulator::Schedule (m_timeslot, &MacLow::ScreamNormalDataTransmission, this);
+    }
+  }
+#endif
+
+#if defined (SCREAM)
+  void MacLow::InitiateRemainNodes ()
+  {
+    for (uint16_t i = 1; i <= NETWORK_SIZE; ++ i)
+    {
+      m_remainNodes.push_back (i);
+    }
+  }
+#endif
+#if defined (SCREAM)
+  uint16_t MacLow::GetFromPosition (uint16_t pos)
+  {
+    std::vector<uint16_t>::iterator it = m_remainNodes.begin ();
+    uint16_t node_id = *(it + pos - 1);
+    m_remainNodes.erase (it + pos - 1);
+    return node_id;
+  }
+#endif
+  void MacLow::SetPdrRequirement70 ()
+  {
+    m_desiredDataPdr = 0.7;
+  }
+  void MacLow::SetPdrRequirement80 ()
+  {
+    m_desiredDataPdr = 0.8;
+  }
+  void MacLow::SetPdrRequirement90 ()
+  {
+    m_desiredDataPdr = 0.9;
+  }
+  void MacLow::SetPdrRequirement95 ()
+  {
+    m_desiredDataPdr = 0.95;
+  }
+
+  void MacLow::IncrementReTransmissionTimes ()
+  {
+    if (m_retransmissionTimes <= RETRANSMISSION_TIMES)
+    {
+      m_retransmissionTimes ++;
+    }
+    if (m_retransmissionTimes == RETRANSMISSION_TIMES + 1)
+    {
+      m_retransmissionTimes = 0;
+      if ( m_packetQueue.size () != 0)
       {
-        m_retransmissionTimes ++;
-      }
-      if (m_retransmissionTimes == RETRANSMISSION_TIMES + 1)
-      {
-        m_retransmissionTimes = 0;
-        if ( m_packetQueue.size () != 0)
-        {
-          m_packetQueue.erase (m_packetQueue.begin ()); // drop packet after maximum re-transmission times.
-        }
+        m_packetQueue.erase (m_packetQueue.begin ()); // drop packet after maximum re-transmission times.
       }
     }
-    bool MacLow::IsDuplicatePacket (Ptr<Packet> s)
+  }
+  bool MacLow::IsDuplicatePacket (Ptr<Packet> s)
+  {
+    for (uint32_t i = 0; i < m_packetQueue.size (); ++ i)
     {
-      for (uint32_t i = 0; i < m_packetQueue.size (); ++ i)
+      if (m_packetQueue[i]->GetUid () == s->GetUid ())
       {
-        if (m_packetQueue[i]->GetUid () == s->GetUid ())
-        {
-          return true;
-        }
+        return true;
       }
-      return false;
     }
-  } // namespace ns3
+    return false;
+  }
+} // namespace ns3

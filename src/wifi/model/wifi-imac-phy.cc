@@ -606,8 +606,11 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
           (*it)->noisePlusInterferenceW = item->noisePlusInterferenceW;
         }
 
-        (*it)->inSinr = item->inSinr;
-        (*it)->outSinr = item->outSinr;
+        if ( (*it)->inSinr == 0)
+        {
+          (*it)->inSinr = item->inSinr;
+          (*it)->outSinr = item->outSinr;
+        }
         (*it)->supposedInterferenceW = item->supposedInterferenceW;
 #ifndef TX_POWER_HETEROGENEITY
         sort (m_signalMap.begin (), m_signalMap.end (), myCompare);
@@ -776,7 +779,9 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
 
 
       rxPowerDbm += m_rxGainDb;
-      m_rxPowerDbm = rxPowerDbm + m_rxPowerDeviation.GetValue ();
+      double rxPowerDbmCopy = rxPowerDbm;
+      rxPowerDbm += m_rxPowerDeviation.GetValue ();
+      m_rxPowerDbm = rxPowerDbm;
       double rxPowerW = DbmToW (rxPowerDbm);
       Time rxDuration = CalculateTxDuration (packet->GetSize (), txMode, preamble);
       Time endRx = Simulator::Now () + rxDuration;
@@ -786,11 +791,11 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
       packet->PeekHeader(hdr); 
 
       /*
-         if (Simulator::Now () >= Simulator::LearningTimeDuration && hdr.GetAddr1 () == m_self)
-         {
-         std::cout<<m_self<<" rxPowerDbm: "<< rxPowerDbm << std::endl;
-         }
-         */
+      if (Simulator::Now () >= Simulator::LearningTimeDuration && hdr.GetAddr1 () == m_self && hdr.IsData ())
+      {
+        std::cout<<m_self<<" rxPowerDbm: "<< rxPowerDbm << std::endl;
+      }
+      */
       Ptr<InterferenceHelper::Event> event;
       // Register the concurrent transmitters.
       event = m_interference.Add (packet->GetSize (), txMode, preamble, rxDuration, rxPowerW);
@@ -842,14 +847,15 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
           // if the simulation is still in the learning process, receive packets as usual, if it is not in the learning process,
           // only when the node is active, can we receive packets
           /*
-             if ( Simulator::Now () >= Simulator::LearningTimeDuration )
-             {
-             if (hdr.GetAddr1 ().GetNodeId () == m_self.GetNodeId ())
-             {
-             std::cout<<"RECEIVE: "<<m_self.GetNodeId ()<<" is receiving: "<<hdr.GetAddr2 ().GetNodeId ()<<" channel: "<<GetChannelNumber ()<<" pwoer? "<<(rxPowerW >= m_edThresholdW)<<" node_status: "<< m_nodeActiveStatusCallback () << std::endl;
-             }
-             }
-             */
+          if ( Simulator::Now () >= Simulator::LearningTimeDuration )
+          {
+            if (hdr.GetAddr1 ().GetNodeId () == m_self.GetNodeId ())
+            {
+              std::cout<<"RECEIVE: "<<m_self.GetNodeId ()<<" is receiving: "<<hdr.GetAddr2 ().GetNodeId ()<<" channel: "<<GetChannelNumber ()<<" pwoer? "<<(rxPowerW >= m_edThresholdW)<<" node_status: "<< m_nodeActiveStatusCallback () 
+                <<" energy: "<< (rxPowerW >= m_edThresholdW)<< std::endl;
+            }
+          }
+          */
           if (rxPowerW >= m_edThresholdW && (Simulator::Now () < Simulator::LearningTimeDuration || m_nodeActiveStatusCallback () == true || GetChannelNumber () == CONTROL_CHANNEL))
           { 
             NS_LOG_DEBUG ("sync to signal (power=" << rxPowerW << "W)");
@@ -900,7 +906,7 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
               //-----------------------Broadcast message in the learning process ----------------------------//
               if (hdr.GetAddr1 ().IsGroup () )
               {
-                attenuation = WifiImacPhy::GetPowerDbm ( m_initialPowerLevel ) + m_txGainDb - rxPowerDbm;
+                attenuation = WifiImacPhy::GetPowerDbm ( m_initialPowerLevel ) + m_txGainDb - rxPowerDbmCopy;
               }
               //std::cout<<Simulator::Now () <<" "<<m_self<<" atten: "<< attenuation << std::endl;
               if ( hdr.IsData () )
@@ -925,7 +931,7 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
 #else
               item->supposedInterferenceW = DbmToW ( GetPowerDbmWithFixedSnr (item->from, m_self) + GetTxGain () - attenuation); 
 #endif
-              WifiImacPhy::SetSignalMap(item, m_interference.GetNoise ());
+              WifiImacPhy::SetSignalMap(item, NOISE_POWER_W);
             }
             //_______________________________________________________________________________________________________
             //        Control channel logic after the learning process
@@ -1051,7 +1057,7 @@ maybeCcaBusy:
     }
     //std::cout<<" txpower: "<< txPower + m_txGainDb <<" double"<< std::endl;
     m_channel->Send (this, pkt, txPower + m_txGainDb, txMode, preamble);// by default, txPower (powerlevel) is 0. See MacLow::ForwardDown
-    std::cout<<Simulator::Now () << " "<<m_self.GetNodeId ()<<" payload_size: "<<pkt->GetSize ()<<" header_size: "<< hdr.GetSize () << std::endl;
+    //std::cout<<Simulator::Now () << " "<<m_self.GetNodeId ()<<" payload_size: "<<pkt->GetSize ()<<" header_size: "<< hdr.GetSize () << std::endl;
   }
   void
     WifiImacPhy::SendPacket (Ptr<const Packet> packet, WifiMode txMode, WifiPreamble preamble, uint8_t txPower)

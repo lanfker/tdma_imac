@@ -8,6 +8,7 @@
 #include "ns3/simulator.h"
 namespace ns3
 {
+#define SNR_PDR_SAMPLE_NUMBER 601
 class Controller : public Object
 {
 public:
@@ -16,9 +17,11 @@ public:
   ~Controller ();
 
   static const double  m_pdrToSnr[1000];
+  static const double SNR_PDR[SNR_PDR_SAMPLE_NUMBER][2];
   virtual double ComputeSlope (double currentPdr);
   virtual double ComputeSlope (double currentPdr, double desiredPdr);
   virtual double GetSnrByPdr (double pdr);
+  virtual uint32_t GetIndexByPdr (double pdr);
 private:
 
 };
