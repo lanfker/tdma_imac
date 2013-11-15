@@ -470,6 +470,18 @@ namespace ns3 {
     return m_tdmaLinks;
   }
 
+  bool Simulator::SenderAlreadyChosenLink (std::string sender)
+  {
+    for (std::vector<TdmaLink>::iterator _it = m_tdmaLinks.begin (); _it != m_tdmaLinks.end (); ++ _it)
+    {
+      if (_it->senderAddr == sender)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void Simulator::PrintLinks ()
   {
     std::cout<<std::endl<<" print links (count): "<< m_tdmaLinks.size ()<< std::endl;

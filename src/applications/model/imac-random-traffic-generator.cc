@@ -33,7 +33,7 @@ namespace ns3
           MakeUintegerChecker<uint32_t>())
       .AddAttribute ("ApplicationStopTime", "The time at which the simulation stops", TimeValue (Seconds(0)),
           MakeTimeAccessor (&ImacRandomTrafficGenerator::m_stopTime), MakeTimeChecker ())
-    ;
+      ;
     return tid;
   }
   /*
@@ -47,7 +47,7 @@ namespace ns3
     m_settingDelay = UniformVariable(0,MAX_SETTING_DELAY);
     NS_LOG_FUNCTION (this);
   }
-  
+
   /*
    * the constructor which could initialize the probability threshold value
    */
@@ -60,12 +60,12 @@ namespace ns3
     m_settingDelay = UniformVariable(0,MAX_SETTING_DELAY); 
     NS_LOG_FUNCTION (this);
   }
- 
+
   ImacRandomTrafficGenerator::~ImacRandomTrafficGenerator()
   {
     NS_LOG_FUNCTION (this);
   }
-  
+
 
   /*
    * There are three phase in this traffic generator:
@@ -77,60 +77,63 @@ namespace ns3
    *
    */
   void
-  ImacRandomTrafficGenerator::DoGenerate()
-  {
-    // if m_stopTime is not 0, then the StopApplication method has been invoked. That means the application should stop now.
-    if ( m_stopTime != Seconds (0))
+    ImacRandomTrafficGenerator::DoGenerate()
     {
-      return;
-    }
-    // Get the MAC & PHY layers of the node
-    Ptr<AdhocWifiMac> mac = GetNode()->GetDevice(DEFAULT_WIFI_DEVICE_INDEX)->GetObject<WifiNetDevice>()->GetMac()->GetObject<AdhocWifiMac> ();
-    Ptr<WifiImacPhy> phy = GetNode ()->GetDevice (DEFAULT_WIFI_DEVICE_INDEX)->GetObject<WifiNetDevice> ()->GetPhy ()->GetObject<WifiImacPhy> ();
-    UniformVariable uni;
-    //if simulation is at the intial phase, send a beacon message to let neighbors know the node's existance
-
-    if ( Simulator::Now ()< Simulator::LearningTimeDuration)
-    {
-      if (m_beaconCount < MAX_BEACON_TRIALS)//every node should send out a beacon message.
+      // if m_stopTime is not 0, then the StopApplication method has been invoked. That means the application should stop now.
+      if ( m_stopTime != Seconds (0))
       {
-        Ptr<Packet> p = Create<Packet> (LEARNING_PROCESS_PACKET_LENGTH);
-        mac->Enqueue(p, Mac48Address::GetBroadcast ());// no broadcast message has been sent yet, and is in initial phase, send broadcast message
-        m_beaconCount ++;
-        m_nextEvent = Simulator::Schedule (MilliSeconds ((uint64_t)m_settingDelay.GetValue ()), &ImacRandomTrafficGenerator::DoGenerate, this);
+        return;
       }
-      else if ( Simulator::Now () < Seconds (100) ) 
+      // Get the MAC & PHY layers of the node
+      Ptr<AdhocWifiMac> mac = GetNode()->GetDevice(DEFAULT_WIFI_DEVICE_INDEX)->GetObject<WifiNetDevice>()->GetMac()->GetObject<AdhocWifiMac> ();
+      Ptr<WifiImacPhy> phy = GetNode ()->GetDevice (DEFAULT_WIFI_DEVICE_INDEX)->GetObject<WifiNetDevice> ()->GetPhy ()->GetObject<WifiImacPhy> ();
+      UniformVariable uni;
+      //if simulation is at the intial phase, send a beacon message to let neighbors know the node's existance
+
+      if ( Simulator::Now ()< Simulator::LearningTimeDuration)
       {
-        Mac48Address receiver = phy->NeighborSelectionBySinr(NEIGHBOR_SELECTION_SNR_THRESHOLD); //
-        if ( receiver != Mac48Address::GetBroadcast ())
+        if (m_beaconCount < MAX_BEACON_TRIALS)//every node should send out a beacon message.
+        {
+          Ptr<Packet> p = Create<Packet> (LEARNING_PROCESS_PACKET_LENGTH);
+          mac->Enqueue(p, Mac48Address::GetBroadcast ());// no broadcast message has been sent yet, and is in initial phase, send broadcast message
+          m_beaconCount ++;
+          m_nextEvent = Simulator::Schedule (MilliSeconds ((uint64_t)m_settingDelay.GetValue ()), &ImacRandomTrafficGenerator::DoGenerate, this);
+        }
+        else if ( Simulator::Now () < Seconds (100) ) 
         {
           Mac48Address sender = mac->GetAddress ();
-          TdmaLink link;
-          link.senderAddr = sender.ToString ();
-          link.receiverAddr = receiver.ToString ();
-          link.linkId = sender.GetNodeId () * Simulator::NodesCountUpperBound + receiver.GetNodeId ();
-          Simulator::AddTdmaLink (link); // register the link
-          //Simulator::PrintLinks ();
-          //Simulator::PrintSignalMap (sender.ToString ());
+          if (Simulator::SenderAlreadyChosenLink (sender.ToString ()) ==false)
+          {
+            Mac48Address receiver = phy->NeighborSelectionBySinr(NEIGHBOR_SELECTION_SNR_THRESHOLD); //
+            if ( receiver != Mac48Address::GetBroadcast ())
+            {
+              TdmaLink link;
+              link.senderAddr = sender.ToString ();
+              link.receiverAddr = receiver.ToString ();
+              link.linkId = sender.GetNodeId () * Simulator::NodesCountUpperBound + receiver.GetNodeId ();
+              Simulator::AddTdmaLink (link); // register the link
+              //Simulator::PrintLinks ();
+              //Simulator::PrintSignalMap (sender.ToString ());
+            }
+          }
+          phy->RegisterSignalMap ();
+          m_nextEvent = Simulator::Schedule(MilliSeconds ((uint64_t)m_settingDelay.GetValue ()), &ImacRandomTrafficGenerator::DoGenerate, this);
         }
-        phy->RegisterSignalMap ();
-        m_nextEvent = Simulator::Schedule(MilliSeconds ((uint64_t)m_settingDelay.GetValue ()), &ImacRandomTrafficGenerator::DoGenerate, this);
-      }
-      else if (Simulator::Now () > Seconds (40) && Simulator::Now () < Simulator::LearningTimeDuration )
-      //share initial ER information
-      {
-        if (Simulator::m_linksClassified == false )
+        else if (Simulator::Now () > Seconds (40) && Simulator::Now () < Simulator::LearningTimeDuration )
+          //share initial ER information
         {
-          Simulator::m_linksClassified = true;
-          std::vector<TdmaLink> _vec = Simulator::ListAllLinks ();
-          ClassifyLinks (_vec);
+          if (Simulator::m_linksClassified == false )
+          {
+            Simulator::m_linksClassified = true;
+            std::vector<TdmaLink> _vec = Simulator::ListAllLinks ();
+            ClassifyLinks (_vec);
+          }
+          Ptr<Packet> p = Create<Packet> (LEARNING_PROCESS_PACKET_LENGTH);
+          mac->Enqueue(p, Mac48Address::GetBroadcast ());
+          m_nextEvent = Simulator::Schedule(MilliSeconds ((uint64_t)m_settingDelay.GetValue ()), &ImacRandomTrafficGenerator::DoGenerate, this);
         }
-        Ptr<Packet> p = Create<Packet> (LEARNING_PROCESS_PACKET_LENGTH);
-        mac->Enqueue(p, Mac48Address::GetBroadcast ());
-        m_nextEvent = Simulator::Schedule(MilliSeconds ((uint64_t)m_settingDelay.GetValue ()), &ImacRandomTrafficGenerator::DoGenerate, this);
       }
     }
-  }
 
   void ImacRandomTrafficGenerator::GenerateBeaconMessage ()
   {

@@ -690,7 +690,7 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
       double initialErInterferenceW = niW - NOISE_POWER_W;
 #endif
       m_initialErCallback (m_self.GetNodeId (), returnAddress.GetNodeId (),initialErInterferenceW);
-      //std::cout<<m_self<<" initial_er_size: "<<GetErSize (initialErInterferenceW) << std::endl;
+      std::cout<<m_self<<" initial_er_size: "<<GetErSize (initialErInterferenceW) << std::endl;
     }
 
     std::vector<TdmaLink> relatedLinks = Simulator::FindRelatedLinks (m_self.ToString ());

@@ -106,6 +106,7 @@ namespace ns3 {
     uint8_t updateSeqNo;
     int32_t itemPriority;
     double risingAchieved;
+    Time updateTime;
   } ErInfoItem;
 
 
@@ -759,6 +760,7 @@ namespace ns3 {
       void SetPdrRequirement95 ();
       void IncrementReTransmissionTimes ();
       bool IsDuplicatePacket (Ptr<Packet> s);
+      void AddLinksIntoVectorWithoutDuplication (std::vector<TdmaLink> &targetSet, std::vector<TdmaLink> &newSet);
 
       /****************************************** PRIVATE *********************************************/
     private:

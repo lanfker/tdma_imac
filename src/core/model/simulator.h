@@ -841,6 +841,8 @@ public:
   static void PrintSignalMap (std::string addr);
   static void PrintLinks ();
   static std::vector<TdmaLink> ListAllLinks ();
+
+  static bool SenderAlreadyChosenLink (std::string sender);
   static void ResigerSendingNode (std::string sender, double senderEdgeInterferenceW, std::string receiver, double receiverEdgeInterferenceW);
   static void ClearSendingNodes ();
 

@@ -931,7 +931,28 @@ namespace ns3 {
     // This is mainly for optimization. It can save us some simulation time.
     //--------------------------------------------------------------------------------------------------
     std::vector<TdmaLink> linkRelatedLinks = Simulator::m_nodeLinkDetails[m_self.GetNodeId ()].relatedLinks; 
-    //std::cout<<" link_related_links: "<< linkRelatedLinks.size () << std::endl;
+    std::vector<TdmaLink> relatedLinksCopy (linkRelatedLinks); // make a copy for loop interation
+    for (std::vector<TdmaLink>::iterator it = relatedLinksCopy.begin (); it != relatedLinksCopy.end ();++ it)
+    {
+      //std::cout<<" nodeid: "<<m_self.GetNodeId () <<" sender: "<< Mac48Address(it->senderAddr.c_str ()).GetNodeId () <<" receiver: "<<Mac48Address(it->receiverAddr.c_str ()).GetNodeId ()<< std::endl;
+      if (it->senderAddr == m_self.ToString ())
+      {
+        std::vector<TdmaLink> twoHopRelatedLinks = Simulator::m_nodeLinkDetails[Mac48Address(it->receiverAddr.c_str ()).GetNodeId ()].relatedLinks; 
+        AddLinksIntoVectorWithoutDuplication (linkRelatedLinks, twoHopRelatedLinks);
+      }
+      else if (it->receiverAddr == m_self.ToString ())
+      {
+        std::vector<TdmaLink> twoHopRelatedLinks = Simulator::m_nodeLinkDetails[Mac48Address(it->senderAddr.c_str ()).GetNodeId ()].relatedLinks; 
+        AddLinksIntoVectorWithoutDuplication (linkRelatedLinks, twoHopRelatedLinks);
+      }
+    }
+
+    /*
+    for (std::vector<TdmaLink>::iterator it = linkRelatedLinks.begin (); it != linkRelatedLinks.end ();++ it)
+    {
+      std::cout<<" result: nodeid: "<<m_self.GetNodeId () <<" sender: "<< Mac48Address(it->senderAddr.c_str ()).GetNodeId () <<" receiver: "<<Mac48Address(it->receiverAddr.c_str ()).GetNodeId ()<< std::endl;
+    }
+    */
     if ( linkRelatedLinks.size () != 0)
     {
       TdmaLink maxLink = *(linkRelatedLinks.begin ());
@@ -946,6 +967,7 @@ namespace ns3 {
       }
 
 
+      //std::cout<<"max_link: sender: "<< Mac48Address(maxLink.senderAddr.c_str ()).GetNodeId ()<<" receiver: "<<Mac48Address(maxLink.receiverAddr.c_str ()).GetNodeId () <<std::endl;
       //-----------------------------------------------------------------------------------------------
       //If for the max priority link, the current node is the sender, 
       //-----------------------------------------------------------------------------------------------
@@ -963,6 +985,7 @@ namespace ns3 {
         {
           NS_ASSERT (m_conflictingSet.size () != 0);
           CollectConfilictingLinks (m_conflictingSet, m_self);
+          std::cout<<m_self.GetNodeId () << "conflictsize: "<< m_conflictingSet.size () <<"  max_link_sender: "<< (maxLink.senderAddr == m_self.ToString ()) <<" nextsendingslot: "<< (m_nextSendingSlot == m_currentTimeslot) << std::endl;
           SenderComputeThePriority (m_self.ToString ()); //Compute for the next sending timeslot
           m_nodeActive = true; 
           //once the node knows it could be active in the slot, stop computing
@@ -1058,12 +1081,20 @@ namespace ns3 {
   void MacLow::CollectConfilictingLinks ( std::vector<int64_t> &vec, Mac48Address sender)
   {
     // This for loop was belong to @CalcPriority
+    //Time timeDifference = Seconds(0);
     for (std::vector<ErInfoItem>::iterator it = m_othersControlInformation.begin (); it != m_othersControlInformation.end (); ++ it)
     {
       uint32_t indx = it->sender * 10;
       indx += 1; // for data er
       CopyErInfoItem (it, &m_othersControlInformationCopy[indx]);
+      /*
+      if (Simulator::Now () -  m_othersControlInformationCopy[indx].updateTime > timeDifference )
+      {
+        timeDifference = Simulator::Now () -  m_othersControlInformationCopy[indx].updateTime ;
+      }
+      */
     }
+    //std::cout<<Simulator::Now () << " "<<m_self.GetNodeId ()<<" max_time_difference: "<< timeDifference << std::endl;
 
     // clear pervious results
     vec.clear ();
@@ -1133,6 +1164,7 @@ namespace ns3 {
     //                      This part is similar to the Bi-directional ER logic
     // ____________________________________________________________________________________________________________________________
     std::vector<TdmaLink> allLinks = Simulator::ListAllLinks ();
+    //std::cout<<"all_link_cout: "<< allLinks.size () << std::endl;
     for (std::vector<TdmaLink>::iterator it = allLinks.begin (); it != allLinks.end (); ++ it)
     {
       if (it->linkId == linkInfo.linkId ) // if the current link is the target link, ignore it
@@ -1282,11 +1314,9 @@ namespace ns3 {
       }
       //UpdateNextRxSlot (it->linkId, it->nextSlot, false);// from receiver
     }
-    //std::cout<<" in Process control payload, _vec size: "<< payload.vec.size () << std::endl;
     for (std::vector<ErInfoItem>::iterator _it = payload.vec.begin (); _it != payload.vec.end (); ++ _it)
     {
 
-      //std::cout<<m_self.GetNodeId () << " sender: "<< (uint32_t)(_it->sender) <<" receiver: "<< (uint32_t)(_it->receiver) << std::endl;
       Mac48Address originalSender = Mac48Address ( IntToMacAddress (_it->receiver).c_str ());
       if ( originalSender == m_self) // if is an Info Item of my own when as receiver, @m_self always has the latest information
       {
@@ -2036,7 +2066,7 @@ rxPacket:
         m_maxBiDirectionalErChangeInformTimes --;
       }
       m_previousSendingPower = txPower;
-      //std::cout<<m_self<<" "<< Simulator::Now () <<" transmission power for con     trol signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
+      std::cout<<m_self<<" "<< Simulator::Now () <<" transmission power for control signal: "<< txPower<<" maxNI: "<< maxNI << std::endl;
       //std::cout<<"5: "<<m_self.GetNodeId ()<<" "<< Simulator::Now () <<" "<< txPower<<" "<< maxNI << std::endl;
 #endif
 #ifdef MAX_POWER_LEVEL
@@ -2789,6 +2819,7 @@ rxPacket:
     item.updateSeqNo = 0;
     item.itemPriority = 0;
     item.risingAchieved = false;
+    item.updateTime = Simulator::Now ();
     item.itemId = (sender * Simulator::NodesCountUpperBound + receiver) * 10;
     if ( isDataEr == true )
     {
@@ -2823,7 +2854,9 @@ rxPacket:
 
 
     ErInfoItem dataErItem = m_othersControlInformationCopy[sender.GetNodeId () * 10 + 1];
-    if ( dataErItem.sender != 0)
+    // er info item life time contraint. may be disabled
+    if ( dataErItem.sender != 0 )
+    //if ( dataErItem.sender != 0 && (Simulator::Now () - dataErItem.updateTime ) <= Seconds (ITEM_LIFE_TIMESLOT*TIME_SLOT_LENGTH/1000) )
     {
       dataFound = true;
       retVector.insert ( retVector.begin (), (double)dataErItem.edgeInterferenceW);
@@ -3197,6 +3230,7 @@ rxPacket:
   Payload MacLow::ParseControlPacketPayload (uint8_t* buffer, WifiMacHeader hdr)
   {
 
+    //std::cout<<" parsing control_payload: "<< std::endl;
     Payload  payload;
     uint8_t size = 0;
     if (m_phy->GetObject<WifiImacPhy> ()->GetChannelNumber () == CONTROL_CHANNEL )
@@ -3244,6 +3278,11 @@ rxPacket:
       edgeInterferenceDbm <<= 5;
       edgeInterferenceDbm |= ((buffer[i * itemSize + 2] >>3) & 0x1f);
       item.edgeInterferenceW = m_phy->GetObject<WifiImacPhy> ()->DbmToW ((double)edgeInterferenceDbm/AMPLIFY_TIMES * -1);
+      if (m_self.GetNodeId () == 58 )
+      {
+        std::cout<<m_self.GetNodeId ()<<" from: "<< hdr.GetAddr2().GetNodeId ()<< " sender: "<< (uint32_t)(item.sender) <<" receiver: "<< (uint32_t)(item.receiver)
+          <<" updateSeqNo: "<< (uint32_t)(item.updateSeqNo)<<" priority: "<< (uint32_t)(item.itemPriority) <<" edgeInterferenceDbm: "<< edgeInterferenceDbm << std::endl;
+      }
 
       payload.vec.push_back (item);
     }
@@ -3289,6 +3328,7 @@ rxPacket:
 
   void MacLow::UpdateReceivedErInfoItem (ErInfoItem erItem,  Mac48Address controlPacketSender)
   {
+    erItem.updateTime = Simulator::Now ();
     uint16_t originalSender = 0;
     originalSender = erItem.receiver;//The first node who sends out the informaiton
     if ( originalSender == m_self.GetNodeId ())
@@ -3300,6 +3340,7 @@ rxPacket:
       //Locate the item in m_othersControlInformation
       if ( it->sender == erItem.sender && it->receiver == erItem.receiver)
       {      
+        it->updateTime = Simulator::Now ();
         uint32_t difference = 0;
         if ( it->updateSeqNo >= erItem.updateSeqNo)
         {
@@ -3312,12 +3353,10 @@ rxPacket:
 
         //NEW ER estimation, judge according to verison number
         if (m_self.GetNodeId () == (uint16_t)(it->sender) )
-          //std::cout<<m_self.GetNodeId ()<<" version number: "<< " local: "<< (uint32_t)(it->updateSeqNo) <<" received: "<< (uint32_t)(erItem.updateSeqNo) << std::endl;
           if (it->updateSeqNo < erItem.updateSeqNo || difference > IMPOSSIBLE_VER_NO_DIFFERENCE)
           {
             if (m_self.GetNodeId () == it->sender)// received a new ER edge information item
             {
-              //std::cout<<m_self.GetNodeId ()<< " new_er_received from receiver: "<< (uint32_t)(it->receiver)<< std::endl;
               m_newErEdgeReceivedFromReceiver = 1;
             }
             //--------------------------------------------------------------------------------
@@ -3341,6 +3380,7 @@ rxPacket:
               }
             }
 
+            //sort according to item priority
 
             ErInfoItem tempItem;
             CopyErInfoItem (it, &tempItem);
@@ -3355,7 +3395,8 @@ rxPacket:
             }
             else
             {
-              for (std::vector<ErInfoItem>::iterator sub_it = m_othersControlInformation.begin (); sub_it != m_othersControlInformation.end (); ++ sub_it)
+              for (std::vector<ErInfoItem>::iterator sub_it = m_othersControlInformation.begin (); 
+                  sub_it != m_othersControlInformation.end (); ++ sub_it)
               {
                 if (sub_it->itemPriority <= tempItem.itemPriority)
                 {
@@ -3369,6 +3410,7 @@ rxPacket:
       }
     }
 
+    //could not find the ER INFO item, then push it into @m_othersControlInformation;
     erItem.itemPriority =erItem.itemPriority == 0 ? erItem.itemPriority : erItem.itemPriority - 1;
     if ( m_othersControlInformation.size () == 0)
     {
@@ -3394,6 +3436,14 @@ rxPacket:
 
   std::vector<ErInfoItem> MacLow::SelectErInfoItemsToTransmit (uint32_t totalSize )
   {
+    if (m_self.GetNodeId () == 69)
+    {
+      for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
+      {
+        std::cout<<"self: 69 sender: "<<(uint32_t)(it->sender) <<" receiver: "<< (uint32_t)(it->receiver) <<" seqNo: "
+          << (uint32_t)(it->updateSeqNo)<<" priority: "<< (uint32_t)(it->itemPriority) <<" interference: "<< it->edgeInterferenceW<< std::endl;
+      }
+    }
     int32_t selfPriority = 0, othersPriority = 0;
     //uint32_t itemSentCountInOthers = 0;
     m_informingRange = IMPOSSIBLE_ER;
@@ -3432,6 +3482,12 @@ rxPacket:
           m_informingRange = selfIter->edgeInterferenceW;
         }
         retVector.push_back ( *selfIter );
+        if (m_self.GetNodeId () == 69)
+        {
+          std::cout<<"self sender: "<<(uint32_t)(selfIter->sender) <<" receiver: "<< (uint32_t)(selfIter->receiver) 
+            <<" seqNo: "<< (uint32_t)(selfIter->updateSeqNo)<<" priority: "<< (uint32_t)(selfIter->itemPriority) 
+            <<" interference: "<< selfIter->edgeInterferenceW<< std::endl;
+        }
         ++ i;
         if (selfIter->itemPriority != 0)
         {
@@ -3502,6 +3558,12 @@ rxPacket:
           if (find (nodesInEr.begin (), nodesInEr.end (), *nodesIt) != nodesInEr.end ())// if the current node is in the link's ER
           {
             retVector.push_back ( *othersIter );
+            if (m_self.GetNodeId () == 69)
+            {
+              std::cout<<"other sender: "<<(uint32_t)(othersIter->sender) <<" receiver: "<< (uint32_t)(othersIter->receiver) 
+                <<" seqNo: "<< (uint32_t)(othersIter->updateSeqNo)<<" priority: "<< (uint32_t)(othersIter->itemPriority) 
+                <<" interference: "<< othersIter->edgeInterferenceW<< std::endl;
+            }
             ++ i;
             ErInfoItem temp;
             CopyErInfoItem (othersIter, &temp);
@@ -3618,10 +3680,6 @@ rxPacket:
       //Sender Id
       *(ptr++) = (it->sender & 0xff); //the lower 8-bit of the sender. 1 byte finishes
       *(ptr) = ((it->sender >> 8) & 0x01); // the higher 1-bit of the sender
-      if (it->receiver == m_self.GetNodeId () )
-      {
-        //std::cout<<m_self.GetNodeId ()<< " sender: "<< (uint32_t)(it->sender) <<" receiver: "<< (uint32_t)(it->receiver) <<std::endl;
-      }
       // Version number
       *(ptr++) |= ((it->updateSeqNo) << 1); // 7 bits
       //Item priority
@@ -3639,6 +3697,11 @@ rxPacket:
       uint16_t edgeInterferenceDbm = (uint16_t)( -AMPLIFY_TIMES * m_phy->GetObject<WifiImacPhy> ()->WToDbm (it->edgeInterferenceW));
       *(ptr++) |= ((edgeInterferenceDbm & 0x1f) << 3); // lower 5 bits
       *(ptr++) = ((edgeInterferenceDbm >> 5) & 0x7f); //higher 5 bits
+      if (m_self.GetNodeId () == 69 )
+      {
+        std::cout<<m_self.GetNodeId ()<<" to: "<< m_dataReceiverAddr.GetNodeId ()<< " sender: "<< (uint32_t)(it->sender) <<" receiver: "<< (uint32_t)(it->receiver)
+          <<" updateSeqNo: "<< (uint32_t)(it->updateSeqNo)<<" priority: "<< (uint32_t)(it->itemPriority) <<" edgeInterferenceDbm: "<< edgeInterferenceDbm << std::endl;
+      }
 
     }
     if ( size_count <= max_size )
@@ -3879,6 +3942,7 @@ rxPacket:
   void MacLow::UpdateControlInformation (ErInfoItem payload)
   {
 
+    std::cout<<" update_control_information: payload.sender: "<<(uint32_t)(payload.sender) <<" payload.receiver: "<< (uint32_t)(payload.receiver) << " self: " << m_self.GetNodeId () << std::endl;
     for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
     {
       if (payload.sender == it->sender && payload.receiver == it->receiver)
@@ -4142,6 +4206,7 @@ rxPacket:
     a->updateSeqNo = b->updateSeqNo;
     a->itemPriority = b->itemPriority;
     a->risingAchieved = b->risingAchieved;
+    a->updateTime = b->updateTime;
   }
 
   // copy first to second;
@@ -4154,6 +4219,7 @@ rxPacket:
     a->updateSeqNo = b->updateSeqNo;
     a->itemPriority = b->itemPriority;
     a->risingAchieved = b->risingAchieved;
+    a->updateTime = b->updateTime;
   }
 
 
@@ -4169,7 +4235,15 @@ rxPacket:
     }
     ErInfoItem item = GenerateDefaultErInfoItem (sender, receiver, true);
     item.edgeInterferenceW = initialErW;
-    m_controlInformation.push_back (item);
+    if (receiver != m_self.GetNodeId ())
+    { 
+      uint32_t indx=sender * 10 + 1; // 1 for data er
+      CopyErInfoItem (&item, &m_othersControlInformationCopy[indx]);
+    }
+    else
+    {
+      m_controlInformation.push_back (item);
+    }
 
   }
 
@@ -4733,5 +4807,27 @@ rxPacket:
       }
     }
     return false;
+  }
+
+  void MacLow::AddLinksIntoVectorWithoutDuplication (std::vector<TdmaLink> &targetSet, std::vector<TdmaLink> &newSet)
+  {
+    std::vector<TdmaLink> copy (targetSet);
+    for (std::vector<TdmaLink>::iterator it = newSet.begin (); it != newSet.end (); ++ it)
+    {
+      bool found =false;
+      for (std::vector<TdmaLink>::iterator innerIt = copy.begin (); innerIt != copy.end (); ++ innerIt)
+      {
+        if ( it->linkId == innerIt->linkId)
+        {
+          found = true;
+          break;
+        }
+      }
+      if (found == false)
+      {
+        targetSet.push_back (*it);
+      }
+    }
+    copy.clear ();
   }
 } // namespace ns3
