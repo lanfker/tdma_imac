@@ -312,6 +312,9 @@ namespace ns3 {
       ns3::MacLow *m_macLow;
   };
 
+  ErInfoItem MacLow::staticControlInformation[INFO_ITEM_SUM] = { };
+  std::vector<TdmaLink> MacLow::staticLamaSendingLinks;
+  std::vector<TdmaLink> MacLow::staticLamaSilentLinks;
 
   MacLow::MacLow ()
     : m_normalAckTimeoutEvent (),
@@ -365,6 +368,8 @@ namespace ns3 {
     {
       m_othersControlInformationCopy[i].sender = 0;
       m_othersControlInformationCopy[i].receiver = 0;
+      MacLow::staticControlInformation[i].sender = 0;
+      MacLow::staticControlInformation[i].receiver = 0;
     }
     m_packetGenreationProbability = DEFAULT_PACKET_GENERATION_PROBABILITY;
     Simulator::Schedule (Simulator::LearningTimeDuration, &MacLow::GeneratePacket, this );
@@ -897,6 +902,201 @@ namespace ns3 {
    */
   void MacLow::CalcPriority ()
   {
+    // clear last sending link set and last silent link set
+
+    int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
+    m_currentTimeslot = currentSlot; 
+
+
+
+    if (m_self.GetNodeId () == 1) // only node 1 calculate the schedule
+    {
+      staticLamaSendingLinks.clear ();
+      staticLamaSilentLinks.clear ();
+      std::vector<TdmaLink> allLinks = Simulator::ListAllLinks ();
+      while (staticLamaSendingLinks.size () + staticLamaSilentLinks.size () != allLinks.size ())
+      {
+        int64_t maxPriority = 0; 
+        TdmaLink maxLink;
+        for (std::vector<TdmaLink>::iterator it = allLinks.begin (); it != allLinks.end (); ++ it)
+        {
+          // current link is not in silent set;
+          bool found = false;
+          for (std::vector<TdmaLink>::iterator sending_it = staticLamaSendingLinks.begin ();
+              sending_it != staticLamaSendingLinks.end (); ++ sending_it)
+          {
+            if (it->linkId == sending_it->linkId)
+            {
+              found = true;
+              break;
+            }
+          }
+          if (found == true)
+          {
+            continue;
+          }
+          for (std::vector<TdmaLink>::iterator silent_it = staticLamaSilentLinks.begin (); 
+              silent_it != staticLamaSilentLinks.end (); ++ silent_it)
+          {
+            if (silent_it->linkId == it->linkId)
+            {
+              found = true;
+              break;
+            }
+          }
+          if (found == false)
+          {
+            int64_t currentLinkPriority = DoCalculatePriority (it->linkId, m_currentTimeslot);
+            if (currentLinkPriority > maxPriority)
+            {
+              maxPriority= currentLinkPriority;
+              maxLink = * it;
+            }
+          }
+        }
+        if (maxPriority != 0)
+        {
+          staticLamaSendingLinks.push_back (maxLink);
+        }
+
+        // calculate what are the links that should be in silent set;
+        
+
+        std::vector<std::string> nodesInEr;
+        uint32_t indx = Mac48Address (maxLink.senderAddr.c_str ()).GetNodeId () * 10 + 1; // 1 for data ER
+        double edgeInterferenceW = staticControlInformation[indx].edgeInterferenceW;
+        nodesInEr = Simulator::ListNodesInEr (maxLink.receiverAddr, edgeInterferenceW); 
+        //std::cout<<m_self.GetNodeId () <<" selfER: nodesInEr: "<< nodesInEr.size () << std::endl;
+        for (std::vector<std::string>::iterator it = nodesInEr.begin (); it != nodesInEr.end (); ++ it)
+        {
+          TdmaLink linkInfo = Simulator::m_nodeLinkDetails[Mac48Address (it->c_str ()).GetNodeId ()].selfInitiatedLink;
+          if (linkInfo.linkId == maxLink.linkId)
+          {
+            continue;
+          }
+          bool found = false;
+          for (std::vector<TdmaLink>::iterator silent_it = staticLamaSilentLinks.begin (); silent_it != staticLamaSilentLinks.end (); ++ silent_it)
+          {
+            if (silent_it->linkId == linkInfo.linkId)
+            {
+              found = true;
+              break;
+            }
+          }
+          if (found == false)
+          {
+            staticLamaSilentLinks.push_back (linkInfo);
+          }
+        }
+        //std::cout<<m_self.GetNodeId () <<" after_selfEr: silent_set: "<< staticLamaSilentLinks.size () << std::endl;
+
+
+        for (std::vector<TdmaLink>::iterator it = allLinks.begin (); it != allLinks.end (); ++ it)
+        {
+          if (it->linkId == maxLink.linkId )
+          {
+            continue;
+          }
+          bool found = false;
+          for (std::vector<TdmaLink>::iterator sending_it = staticLamaSendingLinks.begin (); sending_it != staticLamaSendingLinks.end (); ++ sending_it)
+          {
+            if ( it->linkId == sending_it->linkId )
+            {
+              found = true;
+              break;
+            }
+          }
+          if ( found == true)
+          {
+            continue;
+          }
+          for (std::vector<TdmaLink>::iterator silent_it = staticLamaSilentLinks.begin (); silent_it != staticLamaSilentLinks.end (); ++ silent_it)
+          {
+            if (silent_it->linkId == it->linkId)
+            {
+              found = true;
+              break;
+            }
+          }
+          if (found == false) // need to consider since the link is not in silent set
+          {
+
+            std::vector<std::string> nodesInEr;
+            uint32_t indx = Mac48Address (it->senderAddr.c_str ()).GetNodeId () * 10 + 1; // 1 for data ER
+            double edgeInterferenceW = staticControlInformation[indx].edgeInterferenceW;
+            nodesInEr = Simulator::ListNodesInEr (it->receiverAddr, edgeInterferenceW); 
+            if ( find (nodesInEr.begin (), nodesInEr.end (), maxLink.senderAddr) != nodesInEr.end () ||
+                find (nodesInEr.begin (), nodesInEr.end (), maxLink.receiverAddr) != nodesInEr.end ())
+            {
+              staticLamaSilentLinks.push_back (*it);
+            }
+          }
+        }
+        //std::cout<<" staticLamaSendingLinks.size: "<< staticLamaSendingLinks.size () << " staticLamaSilentLinks.size (): "<< staticLamaSilentLinks.size () << std::endl;
+
+      }
+    }
+    /*
+    if (m_self.GetNodeId () == 1)
+    {
+      for (std::vector<TdmaLink>::iterator it = staticLamaSendingLinks.begin (); it != staticLamaSendingLinks.end (); ++ it)
+      {
+        std::cout<<" in sending_set: "<< it->linkId << std::endl;
+      }
+
+      for (std::vector<TdmaLink>::iterator it = staticLamaSilentLinks.begin (); it != staticLamaSilentLinks.end (); ++ it)
+      {
+        std::cout<<" in silent_set: "<< it->linkId << std::endl;
+      }
+    }
+    */
+    Time scheduleDelay = MicroSeconds (DELAY_BEFORE_SWITCH_CHANNEL);
+    for (std::vector<TdmaLink>::iterator it = staticLamaSendingLinks.begin (); it != staticLamaSendingLinks.end (); ++ it)
+    {
+      if (m_self.ToString () == it->senderAddr) // should be as sender
+      {
+          m_dataReceiverAddr = Mac48Address (it->receiverAddr.c_str ());
+          m_nodeActive = true; 
+          Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
+
+
+          if (!m_phy->IsStateSwitching ())
+          {
+            m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); 
+            m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); 
+            if (m_queueEmptyCallback () == true && m_dataReceiverAddr != Mac48Address::GetBroadcast ())
+            {
+              //generate packets by ourselves.
+              Simulator::Schedule (MicroSeconds (TIME_TO_TX_IN_SLOT),&MacLow::GenerateDataPacketAndSend, this);
+            }
+            else
+            {
+              //send the packets in packet queue.
+              Simulator::Schedule (MicroSeconds (TIME_TO_TX_IN_SLOT), &MacLow::m_startTxCallback, this);
+            }
+          }
+        break;
+      }
+      else if (m_self.ToString () == it->receiverAddr) // should be as receiver
+      {
+
+        m_nodeActive = true; 
+        Simulator::Schedule (scheduleDelay, &MacLow::SetNodeActiveFalse, this);
+        if (!m_phy->IsStateSwitching ())   
+        {
+          m_phy->GetObject<WifiImacPhy> ()->SetChannelNumber (DATA_CHANNEL); // switch to data channel;
+          m_phy->GetObject<WifiImacPhy> ()->ScheduleSwitchChannel (scheduleDelay, CONTROL_CHANNEL); // switch to control channel;
+        }
+        break;
+      }
+    }
+
+    if ( Simulator::Now () <= Simulator::SimulationStopTime )
+    {
+      Simulator::Schedule (m_timeslot, &MacLow::CalcPriority, this);
+    }
+
+    /*
     //current timeslot. currently, the timeslot length is 8 ms.
     int64_t currentSlot = (Simulator::Now ().GetNanoSeconds () - Simulator::LearningTimeDuration.GetNanoSeconds ()) / m_timeslot.GetNanoSeconds ();
     // After calculating the timeslot, we assign it to a private member variable such that within the class, 
@@ -934,7 +1134,6 @@ namespace ns3 {
     std::vector<TdmaLink> relatedLinksCopy (linkRelatedLinks); // make a copy for loop interation
     for (std::vector<TdmaLink>::iterator it = relatedLinksCopy.begin (); it != relatedLinksCopy.end ();++ it)
     {
-      //std::cout<<" nodeid: "<<m_self.GetNodeId () <<" sender: "<< Mac48Address(it->senderAddr.c_str ()).GetNodeId () <<" receiver: "<<Mac48Address(it->receiverAddr.c_str ()).GetNodeId ()<< std::endl;
       if (it->senderAddr == m_self.ToString ())
       {
         std::vector<TdmaLink> twoHopRelatedLinks = Simulator::m_nodeLinkDetails[Mac48Address(it->receiverAddr.c_str ()).GetNodeId ()].relatedLinks; 
@@ -947,12 +1146,6 @@ namespace ns3 {
       }
     }
 
-    /*
-    for (std::vector<TdmaLink>::iterator it = linkRelatedLinks.begin (); it != linkRelatedLinks.end ();++ it)
-    {
-      std::cout<<" result: nodeid: "<<m_self.GetNodeId () <<" sender: "<< Mac48Address(it->senderAddr.c_str ()).GetNodeId () <<" receiver: "<<Mac48Address(it->receiverAddr.c_str ()).GetNodeId ()<< std::endl;
-    }
-    */
     if ( linkRelatedLinks.size () != 0)
     {
       TdmaLink maxLink = *(linkRelatedLinks.begin ());
@@ -967,7 +1160,6 @@ namespace ns3 {
       }
 
 
-      //std::cout<<"max_link: sender: "<< Mac48Address(maxLink.senderAddr.c_str ()).GetNodeId ()<<" receiver: "<<Mac48Address(maxLink.receiverAddr.c_str ()).GetNodeId () <<std::endl;
       //-----------------------------------------------------------------------------------------------
       //If for the max priority link, the current node is the sender, 
       //-----------------------------------------------------------------------------------------------
@@ -985,7 +1177,6 @@ namespace ns3 {
         {
           NS_ASSERT (m_conflictingSet.size () != 0);
           CollectConfilictingLinks (m_conflictingSet, m_self);
-          std::cout<<m_self.GetNodeId () << "conflictsize: "<< m_conflictingSet.size () <<"  max_link_sender: "<< (maxLink.senderAddr == m_self.ToString ()) <<" nextsendingslot: "<< (m_nextSendingSlot == m_currentTimeslot) << std::endl;
           SenderComputeThePriority (m_self.ToString ()); //Compute for the next sending timeslot
           m_nodeActive = true; 
           //once the node knows it could be active in the slot, stop computing
@@ -1075,6 +1266,7 @@ namespace ns3 {
       Simulator::Schedule (m_timeslot, &MacLow::CalcPriority, this);
     }
     return;
+    */
 
   }
 
@@ -1432,7 +1624,7 @@ namespace ns3 {
     {
       uint8_t buffer[CONTROL_PAYLOAD_LENGTH];
       packet->CopyData (buffer, CONTROL_PAYLOAD_LENGTH);
-      ProcessControlPayload (buffer, hdr);
+      //ProcessControlPayload (buffer, hdr);
     }
 
     //_____________________________________________________________________________________________________________________
@@ -1639,19 +1831,19 @@ namespace ns3 {
           }
         }
 #else
-        if (Simulator::Now () > Simulator::LearningTimeDuration)
-        {
-          //std::cout<<Simulator::Now ()<< " sender: " << Mac48Address (linkInfo.senderAddr.c_str ()).GetNodeId ()<< " nodeid: "<< m_self.GetNodeId () << " er_rx_statux: "<< GetErRxStatus (linkInfo.linkId ) << std::endl;
-        }
+        // in optimal LAMA, do not have to consider if sender has the latest ER information
+        UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
+        /*
         if ( GetErRxStatus (linkInfo.linkId ) ==  true)
         {
           UpdateReceivedDataPacketNumbers (hdr.GetAddr2 (), m_self, hdr.GetSequenceNumber ()); //
         }
+        */
 #endif
 
         uint8_t buffer[DATA_PACKET_PAYLOAD_LENGTH];
         packet->CopyData (buffer, DATA_PACKET_PAYLOAD_LENGTH);
-        ProcessControlPayload (buffer, hdr);
+        //ProcessControlPayload (buffer, hdr);
 
       }
       m_stationManager->ReportRxOk (hdr.GetAddr2 (), &hdr, rxSnr, txMode);
@@ -3142,6 +3334,8 @@ rxPacket:
           payloadItem.updateSeqNo = (payloadItem.updateSeqNo + 1 ) % MAX_VERSION_NUMBER;
           payloadItem.itemPriority = DEFAULT_INFO_ITEM_PRIORITY + EXTRA_HIGHEST_PRIORITY_SENDING_TRIALS;
           UpdateControlInformation (payloadItem);
+          uint32_t indx = sender.GetNodeId () * 10 + 1; // 1 for data ER
+          MacLow::staticControlInformation[indx] = payloadItem;
 
           m_controlMessagePriority = m_defaultPriority;
           if ( m_erInfoUpdatedTimeSlot == 0)
@@ -3278,11 +3472,6 @@ rxPacket:
       edgeInterferenceDbm <<= 5;
       edgeInterferenceDbm |= ((buffer[i * itemSize + 2] >>3) & 0x1f);
       item.edgeInterferenceW = m_phy->GetObject<WifiImacPhy> ()->DbmToW ((double)edgeInterferenceDbm/AMPLIFY_TIMES * -1);
-      if (m_self.GetNodeId () == 58 )
-      {
-        std::cout<<m_self.GetNodeId ()<<" from: "<< hdr.GetAddr2().GetNodeId ()<< " sender: "<< (uint32_t)(item.sender) <<" receiver: "<< (uint32_t)(item.receiver)
-          <<" updateSeqNo: "<< (uint32_t)(item.updateSeqNo)<<" priority: "<< (uint32_t)(item.itemPriority) <<" edgeInterferenceDbm: "<< edgeInterferenceDbm << std::endl;
-      }
 
       payload.vec.push_back (item);
     }
@@ -3436,14 +3625,6 @@ rxPacket:
 
   std::vector<ErInfoItem> MacLow::SelectErInfoItemsToTransmit (uint32_t totalSize )
   {
-    if (m_self.GetNodeId () == 69)
-    {
-      for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
-      {
-        std::cout<<"self: 69 sender: "<<(uint32_t)(it->sender) <<" receiver: "<< (uint32_t)(it->receiver) <<" seqNo: "
-          << (uint32_t)(it->updateSeqNo)<<" priority: "<< (uint32_t)(it->itemPriority) <<" interference: "<< it->edgeInterferenceW<< std::endl;
-      }
-    }
     int32_t selfPriority = 0, othersPriority = 0;
     //uint32_t itemSentCountInOthers = 0;
     m_informingRange = IMPOSSIBLE_ER;
@@ -3482,12 +3663,6 @@ rxPacket:
           m_informingRange = selfIter->edgeInterferenceW;
         }
         retVector.push_back ( *selfIter );
-        if (m_self.GetNodeId () == 69)
-        {
-          std::cout<<"self sender: "<<(uint32_t)(selfIter->sender) <<" receiver: "<< (uint32_t)(selfIter->receiver) 
-            <<" seqNo: "<< (uint32_t)(selfIter->updateSeqNo)<<" priority: "<< (uint32_t)(selfIter->itemPriority) 
-            <<" interference: "<< selfIter->edgeInterferenceW<< std::endl;
-        }
         ++ i;
         if (selfIter->itemPriority != 0)
         {
@@ -3558,12 +3733,6 @@ rxPacket:
           if (find (nodesInEr.begin (), nodesInEr.end (), *nodesIt) != nodesInEr.end ())// if the current node is in the link's ER
           {
             retVector.push_back ( *othersIter );
-            if (m_self.GetNodeId () == 69)
-            {
-              std::cout<<"other sender: "<<(uint32_t)(othersIter->sender) <<" receiver: "<< (uint32_t)(othersIter->receiver) 
-                <<" seqNo: "<< (uint32_t)(othersIter->updateSeqNo)<<" priority: "<< (uint32_t)(othersIter->itemPriority) 
-                <<" interference: "<< othersIter->edgeInterferenceW<< std::endl;
-            }
             ++ i;
             ErInfoItem temp;
             CopyErInfoItem (othersIter, &temp);
@@ -3697,11 +3866,6 @@ rxPacket:
       uint16_t edgeInterferenceDbm = (uint16_t)( -AMPLIFY_TIMES * m_phy->GetObject<WifiImacPhy> ()->WToDbm (it->edgeInterferenceW));
       *(ptr++) |= ((edgeInterferenceDbm & 0x1f) << 3); // lower 5 bits
       *(ptr++) = ((edgeInterferenceDbm >> 5) & 0x7f); //higher 5 bits
-      if (m_self.GetNodeId () == 69 )
-      {
-        std::cout<<m_self.GetNodeId ()<<" to: "<< m_dataReceiverAddr.GetNodeId ()<< " sender: "<< (uint32_t)(it->sender) <<" receiver: "<< (uint32_t)(it->receiver)
-          <<" updateSeqNo: "<< (uint32_t)(it->updateSeqNo)<<" priority: "<< (uint32_t)(it->itemPriority) <<" edgeInterferenceDbm: "<< edgeInterferenceDbm << std::endl;
-      }
 
     }
     if ( size_count <= max_size )
@@ -3766,7 +3930,7 @@ rxPacket:
     if ( m_phy->IsStateIdle ())
     {
       uint8_t payload[CONTROL_PAYLOAD_LENGTH];
-      GenerateControlPayload (MAX_INFO_ITEM_SIZE, ER_INFO_ITEM_SIZE, payload);
+      //GenerateControlPayload (MAX_INFO_ITEM_SIZE, ER_INFO_ITEM_SIZE, payload);
 
       Ptr<Packet> pkt = Create<Packet> (payload, CONTROL_PAYLOAD_LENGTH);
       WifiMacHeader hdr;
@@ -3816,7 +3980,7 @@ rxPacket:
     m_setLisenterCallback ();
 
     uint8_t payload[DATA_PACKET_PAYLOAD_LENGTH];
-    GenerateControlPayload (MAX_INFO_ITEM_SIZE_IN_DATA_PACKET, ER_INFO_ITEM_SIZE, payload);
+    //GenerateControlPayload (MAX_INFO_ITEM_SIZE_IN_DATA_PACKET, ER_INFO_ITEM_SIZE, payload);
 
     if (pkt == NULL)
     {

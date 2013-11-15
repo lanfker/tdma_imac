@@ -962,6 +962,9 @@ namespace ns3 {
       int32_t m_defaultPriority;
       std::vector<ErInfoItem> m_controlInformation; // this is for the node itself
       std::vector<ErInfoItem> m_othersControlInformation; // this is for the node itself
+      static ErInfoItem staticControlInformation[INFO_ITEM_SUM];
+      static std::vector<TdmaLink> staticLamaSendingLinks;
+      static std::vector<TdmaLink> staticLamaSilentLinks;
       ErInfoItem m_othersControlInformationCopy[INFO_ITEM_SUM]; // this is for the node itself
       std::vector<ErInfoItem> *sortingArray;
       uint32_t m_sendProbLastComputedTimeSlot;
