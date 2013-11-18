@@ -484,10 +484,10 @@ namespace ns3 {
 
   void Simulator::PrintLinks ()
   {
-    std::cout<<std::endl<<" print links (count): "<< m_tdmaLinks.size ()<< std::endl;
+    std::cout<<std::endl<<"print links (count): "<< m_tdmaLinks.size ()<< std::endl;
     for (std::vector<TdmaLink>::iterator _it = m_tdmaLinks.begin (); _it != m_tdmaLinks.end (); ++ _it)
     {
-      std::cout<<" sender.addr: "<< _it->senderAddr <<" receiver.addr: "<< _it->receiverAddr <<" link.id: "<< _it->linkId << std::endl;
+      std::cout<<"sender.addr: "<< _it->senderAddr <<" receiver.addr: "<< _it->receiverAddr <<" link.id: "<< _it->linkId << std::endl;
     }
   }
 
@@ -506,15 +506,15 @@ namespace ns3 {
 
   void Simulator::PrintSignalMap (std::string addr)
   {
-    std::cout<<" signalmaps.size: "<<  m_signalMaps.size () << std::endl;
+    std::cout<<"signalmaps.size: "<<  m_signalMaps.size () << std::endl;
     for (std::vector<NodeSignalMap>::iterator it = m_signalMaps.begin (); it != m_signalMaps.end (); ++ it)
     {
       if ( it->selfAddress == addr )
       {
-        std::cout<<std::endl<<" signalMap for address: "<< it->selfAddress << std::endl;
+        std::cout<<std::endl<<"signalMap for address: "<< it->selfAddress << std::endl;
         for (std::vector<TdmaSignalMap>::iterator _it = it->signalMap.begin (); _it != it->signalMap.end (); ++ _it)
         {
-          std::cout<<" from: "<<_it->from <<" outbound: "<< _it->outBoundAttenuation <<" inbound: "<<_it->inBoundAttenuation<<" outSinr: "
+          std::cout<<"from: "<<_it->from <<" outbound: "<< _it->outBoundAttenuation <<" inbound: "<<_it->inBoundAttenuation<<" outSinr: "
             <<_it->outSinr <<" inSinr: "<<_it->inSinr <<" supposedInterferenceW: " <<_it->supposedInterferenceW <<std::endl;
         }
       }

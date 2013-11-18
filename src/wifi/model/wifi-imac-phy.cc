@@ -568,7 +568,7 @@ switchChannel:
   {	
 
     item->outSinr = item->inSinr = GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () - item->inBoundAttenuation - WToDbm (noise);
-    //std::cout<<" calculated snr: "<< item->outSinr << std::endl;
+    std::cout<<" calculated snr: "<< item->outSinr << std::endl;
     /*
        if (item->outSinr < 0)
        {
