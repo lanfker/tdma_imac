@@ -985,7 +985,7 @@ namespace ns3 {
         {
           NS_ASSERT (m_conflictingSet.size () != 0);
           CollectConfilictingLinks (m_conflictingSet, m_self);
-          std::cout<<m_self.GetNodeId () << "conflictsize: "<< m_conflictingSet.size () <<"  max_link_sender: "<< (maxLink.senderAddr == m_self.ToString ()) <<" nextsendingslot: "<< (m_nextSendingSlot == m_currentTimeslot) << std::endl;
+          //std::cout<<m_self.GetNodeId () << "conflictsize: "<< m_conflictingSet.size () <<"  max_link_sender: "<< (maxLink.senderAddr == m_self.ToString ()) <<" nextsendingslot: "<< (m_nextSendingSlot == m_currentTimeslot) << std::endl;
           SenderComputeThePriority (m_self.ToString ()); //Compute for the next sending timeslot
           m_nodeActive = true; 
           //once the node knows it could be active in the slot, stop computing
@@ -3278,11 +3278,13 @@ rxPacket:
       edgeInterferenceDbm <<= 5;
       edgeInterferenceDbm |= ((buffer[i * itemSize + 2] >>3) & 0x1f);
       item.edgeInterferenceW = m_phy->GetObject<WifiImacPhy> ()->DbmToW ((double)edgeInterferenceDbm/AMPLIFY_TIMES * -1);
+      /*
       if (m_self.GetNodeId () == 58 )
       {
         std::cout<<m_self.GetNodeId ()<<" from: "<< hdr.GetAddr2().GetNodeId ()<< " sender: "<< (uint32_t)(item.sender) <<" receiver: "<< (uint32_t)(item.receiver)
           <<" updateSeqNo: "<< (uint32_t)(item.updateSeqNo)<<" priority: "<< (uint32_t)(item.itemPriority) <<" edgeInterferenceDbm: "<< edgeInterferenceDbm << std::endl;
       }
+      */
 
       payload.vec.push_back (item);
     }
@@ -3436,6 +3438,7 @@ rxPacket:
 
   std::vector<ErInfoItem> MacLow::SelectErInfoItemsToTransmit (uint32_t totalSize )
   {
+    /*
     if (m_self.GetNodeId () == 69)
     {
       for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
@@ -3444,6 +3447,7 @@ rxPacket:
           << (uint32_t)(it->updateSeqNo)<<" priority: "<< (uint32_t)(it->itemPriority) <<" interference: "<< it->edgeInterferenceW<< std::endl;
       }
     }
+    */
     int32_t selfPriority = 0, othersPriority = 0;
     //uint32_t itemSentCountInOthers = 0;
     m_informingRange = IMPOSSIBLE_ER;
@@ -3482,12 +3486,14 @@ rxPacket:
           m_informingRange = selfIter->edgeInterferenceW;
         }
         retVector.push_back ( *selfIter );
+        /*
         if (m_self.GetNodeId () == 69)
         {
           std::cout<<"self sender: "<<(uint32_t)(selfIter->sender) <<" receiver: "<< (uint32_t)(selfIter->receiver) 
             <<" seqNo: "<< (uint32_t)(selfIter->updateSeqNo)<<" priority: "<< (uint32_t)(selfIter->itemPriority) 
             <<" interference: "<< selfIter->edgeInterferenceW<< std::endl;
         }
+        */
         ++ i;
         if (selfIter->itemPriority != 0)
         {
@@ -3558,12 +3564,14 @@ rxPacket:
           if (find (nodesInEr.begin (), nodesInEr.end (), *nodesIt) != nodesInEr.end ())// if the current node is in the link's ER
           {
             retVector.push_back ( *othersIter );
+            /*
             if (m_self.GetNodeId () == 69)
             {
               std::cout<<"other sender: "<<(uint32_t)(othersIter->sender) <<" receiver: "<< (uint32_t)(othersIter->receiver) 
                 <<" seqNo: "<< (uint32_t)(othersIter->updateSeqNo)<<" priority: "<< (uint32_t)(othersIter->itemPriority) 
                 <<" interference: "<< othersIter->edgeInterferenceW<< std::endl;
             }
+            */
             ++ i;
             ErInfoItem temp;
             CopyErInfoItem (othersIter, &temp);
@@ -3697,11 +3705,13 @@ rxPacket:
       uint16_t edgeInterferenceDbm = (uint16_t)( -AMPLIFY_TIMES * m_phy->GetObject<WifiImacPhy> ()->WToDbm (it->edgeInterferenceW));
       *(ptr++) |= ((edgeInterferenceDbm & 0x1f) << 3); // lower 5 bits
       *(ptr++) = ((edgeInterferenceDbm >> 5) & 0x7f); //higher 5 bits
+      /*
       if (m_self.GetNodeId () == 69 )
       {
         std::cout<<m_self.GetNodeId ()<<" to: "<< m_dataReceiverAddr.GetNodeId ()<< " sender: "<< (uint32_t)(it->sender) <<" receiver: "<< (uint32_t)(it->receiver)
           <<" updateSeqNo: "<< (uint32_t)(it->updateSeqNo)<<" priority: "<< (uint32_t)(it->itemPriority) <<" edgeInterferenceDbm: "<< edgeInterferenceDbm << std::endl;
       }
+      */
 
     }
     if ( size_count <= max_size )
@@ -3942,7 +3952,7 @@ rxPacket:
   void MacLow::UpdateControlInformation (ErInfoItem payload)
   {
 
-    std::cout<<" update_control_information: payload.sender: "<<(uint32_t)(payload.sender) <<" payload.receiver: "<< (uint32_t)(payload.receiver) << " self: " << m_self.GetNodeId () << std::endl;
+    //std::cout<<" update_control_information: payload.sender: "<<(uint32_t)(payload.sender) <<" payload.receiver: "<< (uint32_t)(payload.receiver) << " self: " << m_self.GetNodeId () << std::endl;
     for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
     {
       if (payload.sender == it->sender && payload.receiver == it->receiver)

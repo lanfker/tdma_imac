@@ -34,7 +34,8 @@ int main(int argc, char *argv[])
 #if defined (SMALL_NETWORK)
   //const char* TopologyFilePath = "scratch/data5x5x5.txt";
   //const char* TopologyFilePath = "scratch/data1x1.txt";
-  const char* TopologyFilePath = "scratch/grid_data.txt";
+  //const char* TopologyFilePath = "scratch/grid_data.txt";
+  const char* TopologyFilePath = "scratch/data5x5x5_random.txt";
   //const char* TopologyFilePath = "scratch/data5x5x5_with_neteye_channel_parameters.txt";
 #elif defined (LARGE_NETWORK)
   const char* TopologyFilePath = "scratch/data5x7x7.txt";

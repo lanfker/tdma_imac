@@ -685,9 +685,14 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
 #endif
 #ifdef RID_INITIAL_ER
       double rxPowerDbm = m_channel->GetRxPowerByDistance (GetPowerDbm (0) + GetTxGain (), distance) + GetRxGain ();
-      double niDbm = rxPowerDbm - m_snr;
-      double niW = DbmToW (niDbm);
-      double initialErInterferenceW = niW - NOISE_POWER_W;
+      //double niDbm = rxPowerDbm - m_snr; // margin
+      // we should have: rxPowerDbm -snr = 10*log10(noise_W + interference_W)+ 30;
+      //  ==> (rxPowerDbm - snr - 30 ) = 10*log10(noise_W + interference_W);
+      //  ==> noise_W + interference_W = pow ( 10, (rxPowerDbm - snr - 30)/10);
+      //  ==> interference_W = pow (10, (rxPowerDbm - snr - 30)/10) - noise_W;
+      //double niW = DbmToW (niDbm);
+      double initialErInterferenceW = pow (10, (rxPowerDbm - m_snr - 30)/10) - NOISE_POWER_W;
+      //double initialErInterferenceW = niW - NOISE_POWER_W;
 #endif
       m_initialErCallback (m_self.GetNodeId (), returnAddress.GetNodeId (),initialErInterferenceW);
       std::cout<<m_self<<" initial_er_size: "<<GetErSize (initialErInterferenceW) << std::endl;
