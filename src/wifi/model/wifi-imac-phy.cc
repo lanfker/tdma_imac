@@ -568,7 +568,7 @@ switchChannel:
   {	
 
     item->outSinr = item->inSinr = GetPowerDbm (DATA_TX_POWER_LEVEL) + GetTxGain () - item->inBoundAttenuation - WToDbm (noise);
-    std::cout<<" calculated snr: "<< item->outSinr << std::endl;
+    //std::cout<<" calculated snr: "<< item->outSinr << std::endl;
     /*
        if (item->outSinr < 0)
        {
@@ -691,7 +691,7 @@ item->inSinr = GetPowerDbmWithFixedSnr (item->from, m_self ) + GetTxGain () - it
 #endif
       m_initialErCallback (m_self.GetNodeId (), returnAddress.GetNodeId (),initialErInterferenceW);
       //2013-11-15 Fri 12:15 PM
-      //std::cout<<m_self<<" initial_er_size: "<<GetErSize (initialErInterferenceW) << std::endl;
+      std::cout<<m_self<<" initial_er_size: "<<GetErSize (initialErInterferenceW) << std::endl;
     }
 
     std::vector<TdmaLink> relatedLinks = Simulator::FindRelatedLinks (m_self.ToString ());

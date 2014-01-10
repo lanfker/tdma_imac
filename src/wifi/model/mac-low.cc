@@ -1025,8 +1025,10 @@ namespace ns3 {
             uint32_t indx = Mac48Address (it->senderAddr.c_str ()).GetNodeId () * 10 + 1; // 1 for data ER
             double edgeInterferenceW = staticControlInformation[indx].edgeInterferenceW;
             nodesInEr = Simulator::ListNodesInEr (it->receiverAddr, edgeInterferenceW); 
-            if ( find (nodesInEr.begin (), nodesInEr.end (), maxLink.senderAddr) != nodesInEr.end () ||
-                find (nodesInEr.begin (), nodesInEr.end (), maxLink.receiverAddr) != nodesInEr.end ())
+            //std::cout<<"link: "<< it->linkId <<" er_size: "<< nodesInEr.size () << std::endl;
+            //if ( find (nodesInEr.begin (), nodesInEr.end (), maxLink.senderAddr) != nodesInEr.end () ||
+                //find (nodesInEr.begin (), nodesInEr.end (), maxLink.receiverAddr) != nodesInEr.end ())
+            if (find (nodesInEr.begin (), nodesInEr.end (), maxLink.senderAddr) != nodesInEr.end ())
             {
               staticLamaSilentLinks.push_back (*it);
             }
@@ -1034,6 +1036,43 @@ namespace ns3 {
         }
         //std::cout<<" staticLamaSendingLinks.size: "<< staticLamaSendingLinks.size () << " staticLamaSilentLinks.size (): "<< staticLamaSilentLinks.size () << std::endl;
 
+      }
+    }
+
+    //sanity check: if every silent link will conflict with the sending link set
+    for (std::vector<TdmaLink>::iterator silent_it = staticLamaSilentLinks.begin (); silent_it != staticLamaSilentLinks.end (); ++ silent_it)
+    {
+      std::vector<std::string> silent_link_ER;
+      uint32_t indx = Mac48Address (silent_it->senderAddr.c_str ()).GetNodeId () * 10 + 1;
+      double edgeInterferenceW = staticControlInformation[indx].edgeInterferenceW;
+      silent_link_ER = Simulator::ListNodesInEr (silent_it->receiverAddr, edgeInterferenceW);
+
+      bool conflict=false;
+      for (std::vector<TdmaLink>::iterator sending_it = staticLamaSendingLinks.begin (); sending_it != staticLamaSendingLinks.end (); ++ sending_it)
+      {
+        if ( find (silent_link_ER.begin (), silent_link_ER.end (), sending_it->senderAddr) != silent_link_ER.end ())
+        {
+          //std::cout<<"link : "<< silent_it->linkId << " conflict with: " << sending_it->linkId<< std::endl;
+          conflict = true;
+          break;
+        }
+        
+        std::vector<std::string> sending_link_ER;
+        uint32_t indx = Mac48Address (sending_it->senderAddr.c_str ()).GetNodeId () * 10 + 1;
+        double edgeInterferenceW = staticControlInformation[indx].edgeInterferenceW;
+        sending_link_ER = Simulator::ListNodesInEr (sending_it->receiverAddr, edgeInterferenceW );
+        if ( find (sending_link_ER.begin (), sending_link_ER.end (), silent_it->senderAddr) != sending_link_ER.end ())
+        {
+          //std::cout<<"link : "<< silent_it->linkId << " conflict with: " << sending_it->linkId<< std::endl;
+          conflict = true;
+          break;
+        }
+
+      }
+      if (conflict == false)
+      {
+        
+        std::cout<<" !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!not conflict" << std::endl;
       }
     }
     /*
@@ -4389,6 +4428,10 @@ rxPacket:
 
   void MacLow::SetInitialEr (uint16_t sender, uint16_t receiver, double initialErW)
   {
+    ErInfoItem static_item = GenerateDefaultErInfoItem (sender, receiver, true);
+    static_item.edgeInterferenceW = initialErW;
+    uint32_t indx = sender * 10 + 1; // 1 for data ER
+    MacLow::staticControlInformation[indx] = static_item;
     for (std::vector<ErInfoItem>::iterator it = m_controlInformation.begin (); it != m_controlInformation.end (); ++ it)
     {
       if (it->sender == sender && it->receiver == receiver)
