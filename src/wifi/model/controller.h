@@ -8,7 +8,7 @@
 #include "ns3/simulator.h"
 namespace ns3
 {
-#define SNR_PDR_SAMPLE_NUMBER 601
+#define SNR_PDR_SAMPLE_NUMBER 26
 class Controller : public Object
 {
 public:

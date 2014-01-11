@@ -957,16 +957,42 @@ namespace ns3 {
         if (maxPriority != 0)
         {
           staticLamaSendingLinks.push_back (maxLink);
+
+          // for primary interference
+
+          for (std::vector<TdmaLink>::iterator relatedLink_it = allLinks.begin (); relatedLink_it != allLinks.end (); ++ relatedLink_it)
+          {
+            if (relatedLink_it->linkId == maxLink.linkId )
+            {
+              continue;
+            }
+            if ( relatedLink_it->senderAddr == maxLink.receiverAddr || relatedLink_it->receiverAddr == maxLink.senderAddr || relatedLink_it->receiverAddr == maxLink.receiverAddr)
+            {
+              bool found = false;
+              for (std::vector<TdmaLink>::iterator silent_it = staticLamaSilentLinks.begin (); silent_it != staticLamaSilentLinks.end (); ++ silent_it)
+              {
+                if (silent_it->linkId == relatedLink_it->linkId)
+                {
+                  found = true;
+                  break;
+                }
+              }
+              if (found == false)
+              {
+                staticLamaSilentLinks.push_back (*relatedLink_it);
+              }
+            }
+          }
         }
 
         // calculate what are the links that should be in silent set;
-        
+
 
         std::vector<std::string> nodesInEr;
         uint32_t indx = Mac48Address (maxLink.senderAddr.c_str ()).GetNodeId () * 10 + 1; // 1 for data ER
         double edgeInterferenceW = staticControlInformation[indx].edgeInterferenceW;
         nodesInEr = Simulator::ListNodesInEr (maxLink.receiverAddr, edgeInterferenceW); 
-        //std::cout<<m_self.GetNodeId () <<" selfER: nodesInEr: "<< nodesInEr.size () << std::endl;
+        std::cout<<m_self.GetNodeId () <<" selfER: nodesInEr: "<< nodesInEr.size () << std::endl;
         for (std::vector<std::string>::iterator it = nodesInEr.begin (); it != nodesInEr.end (); ++ it)
         {
           TdmaLink linkInfo = Simulator::m_nodeLinkDetails[Mac48Address (it->c_str ()).GetNodeId ()].selfInitiatedLink;
@@ -1072,7 +1098,7 @@ namespace ns3 {
       if (conflict == false)
       {
         
-        std::cout<<" !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!not conflict" << std::endl;
+        //std::cout<<" !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!not conflict" << std::endl;
       }
     }
     /*

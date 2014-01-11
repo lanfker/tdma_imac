@@ -400,12 +400,6 @@ noiseFloorW = NOISE_POWER_W;
       Time plcpHeaderStart = (*it).GetTime () + MicroSeconds (WifiPhy::GetPlcpPreambleDurationMicroSeconds (payloadMode, preamble));
       Time plcpPayloadStart = plcpHeaderStart + MicroSeconds (WifiPhy::GetPlcpHeaderDurationMicroSeconds (payloadMode, preamble));
       noiseInterferenceW = (*it).GetDelta (); //according to CalculateNoiseInterferenceW, the delta value of the first item in the vector ni is equal to m_firstPower.
-      if (Simulator::Now () > Simulator::LearningTimeDuration )
-      {
-        //std::cout<<" payload phy rate: "<<payloadMode.GetPhyRate ()<<" header phy rate: "<< headerMode.GetPhyRate () << std::endl;
-      }
-      //m_perDetails.append (" GetDelta (): ");
-      //m_perDetails.append (ToString (it->GetDelta ()));
       it ++;
       double powerW = event->GetRxPowerW ();
       for (; it != ni->end (); ++ it)
@@ -696,6 +690,7 @@ noiseFloorW = NOISE_POWER_W;
     noiseW = pow (10, (noiseDbm-30)/10); //the noise power with randomize channel parameters.
     double niDbm = 10*log10(noiseW + interferenceW) + 30;
     double snr = powerDbm - niDbm; // snr in dbm
+    snr = pow(10, snr/10);
 
     double summation = 0;
     for (uint32_t k = 2; k <= 16; ++ k)
